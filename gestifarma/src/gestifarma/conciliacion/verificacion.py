@@ -203,6 +203,21 @@ def verificar(
                 registro.obra_social,
             )
 
+    if registro.plan:
+        if contiene_frase(registro.plan, texto.frente):
+            v.confirmar("plan", "plan", registro.plan)
+        else:
+            otro = _plan_en(texto.frente)
+            if otro and normalizar_texto(otro) != normalizar_texto(registro.plan):
+                v.agregar(
+                    "plan",
+                    advertencia,
+                    f"El plan de la receta parece ser {otro} y se cargó {registro.plan} "
+                    "(puede cambiar el porcentaje de cobertura)." + AVISO_LECTURA,
+                    otro,
+                    registro.plan,
+                )
+
     if registro.nro_afiliado:
         b = buscar_numero(registro.nro_afiliado, texto.frente, texto.numeros_frente)
         base = _base_afiliado(registro.nro_afiliado)
@@ -371,6 +386,12 @@ def _verificar_item(v: Verificacion, item: ItemRegistro, texto: TextoReceta, reg
             v.confirmar(f"{etiqueta} {valor}")
         elif hay_dorso:
             v.agregar(campo, advertencia, f"No se pudo confirmar el {etiqueta} {valor} en el dorso.", None, valor)
+
+
+def _plan_en(texto: str) -> str | None:
+    """ "Plan 210", "PLAN: 310" o "Plan Oro" tal como figura en la receta."""
+    coincidencia = re.search(r"\bPLAN\s*:?\s*([A-Z0-9]+)\b", normalizar_texto(texto))
+    return f"PLAN {coincidencia.group(1)}" if coincidencia else None
 
 
 def _concentraciones(valores) -> str:

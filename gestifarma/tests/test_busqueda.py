@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from gestifarma.busqueda import (
     Estado,
@@ -7,6 +8,7 @@ from gestifarma.busqueda import (
     buscar_numero,
     buscar_producto,
     cantidad_en,
+    concentraciones_en,
     contiene_frase,
     corregir_numeros,
     fechas,
@@ -77,3 +79,8 @@ def test_contiene_frase():
     assert contiene_frase("PAMI", TEXTO)
     assert not contiene_frase("PAM", TEXTO)
     assert contiene_frase("obra social", TEXTO)
+
+
+def test_unidades_mal_leidas_por_el_ocr():
+    assert concentraciones_en("Atorvastatina 20 M9 X 30 comp.") == {(Decimal("20"), "MG")}
+    assert concentraciones_en("Enalapril 1O rng") == {(Decimal("10"), "MG")}

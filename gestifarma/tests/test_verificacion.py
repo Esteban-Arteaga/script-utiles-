@@ -140,3 +140,13 @@ def test_receta_sin_numeros_conocidos(reglas):
     assert resultado.resultado == Resultado.RECETA_SIN_REGISTRO
     assert "no aparece el número" in resultado.hallazgos[0].mensaje
     assert sobrante.resultado == Resultado.REGISTRO_SIN_RECETA
+
+
+def test_plan(reglas):
+    con_plan = FRENTE.replace("OBRA SOCIAL: PAMI", "OBRA SOCIAL: PAMI - Plan 210")
+    assert "plan" in verificar_texto(reglas, frente=con_plan, plan="PLAN 210").confirmados
+    distinto = verificar_texto(reglas, frente=con_plan, plan="PLAN 310")
+    assert any("plan de la receta parece ser PLAN 210" in m for m in mensajes(distinto, Severidad.ADVERTENCIA))
+    assert not any(
+        "plan" in m.lower() for m in mensajes(verificar_texto(reglas, plan="PLAN 310"), Severidad.ADVERTENCIA)
+    )

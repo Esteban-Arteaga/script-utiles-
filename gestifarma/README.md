@@ -51,9 +51,11 @@ gestifarma servidor         # http://127.0.0.1:8000
 - Las recetas se leen sin IA. Con `ANTHROPIC_API_KEY` aparece además el botón "Leer con IA" en cada receta.
 - Para probar desde el celular en la misma red: `gestifarma servidor --host 0.0.0.0` y entrar a
   `http://IP-DE-LA-PC:8000`. Fuera de una red de pruebas, siempre detrás de HTTPS.
-- Para probar la lectura: subir `ejemplos/receta_sintetica.jpg` (o `gestifarma leer
-  ejemplos/receta_sintetica.jpg`), importar `ejemplos/reporte_colegio_ejemplo.csv` con el formato
-  `colegio-ejemplo` y conciliar: la receta queda OK con sus datos confirmados en la imagen.
+- Para probar el circuito completo: subir las 7 imágenes de `ejemplos/recetas/` en "Varias recetas a la
+  vez", importar `ejemplos/reporte_colegio_ejemplo.csv` con el formato `colegio-ejemplo` y tocar Conciliar.
+  Salen 2 OK, 3 con diferencias, 1 para revisar, 1 receta sin carga y 1 carga sin receta. Las imágenes se
+  generan con `python scripts/generar_recetas_ejemplo.py` (datos inventados).
+- Una sola receta desde la terminal: `gestifarma leer ejemplos/recetas/01-gomez.jpg`.
 
 ### Con Docker
 
@@ -110,7 +112,8 @@ gestifarma/
 │   ├── reglas.toml              reglas de conciliación por obra social
 │   └── fuentes/                 formatos de reportes (y robot opcional)
 ├── docs/                        propuesta, lectura sin IA, relevamiento y controles
-├── ejemplos/                    recetas, reporte e imagen de ejemplo
+├── ejemplos/                    recetas (imágenes y ya leídas) y reporte de ejemplo
+├── scripts/                     generador de las recetas de ejemplo
 ├── src/gestifarma/
 │   ├── extraccion/              lectura de recetas: sin IA (OCR, códigos, PDF) y con Claude
 │   ├── conectores/              reporte exportado (CSV/Excel) y robot (Playwright)

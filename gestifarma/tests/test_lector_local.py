@@ -87,3 +87,30 @@ def test_receta_electronica_en_pdf_se_lee_sin_ocr():
 def test_imagen_sin_texto_avisa():
     resultado = LectorLocal().extraer([(jpg(Image.new("RGB", (800, 600), "white")), "vacia.jpg")])
     assert "muy poco texto" in resultado.datos.observaciones
+
+
+def test_recetas_de_ejemplo_de_punta_a_punta():
+    """Las 7 recetas de ejemplo (3 simulan fotos) contra el reporte de ejemplo, sin IA."""
+    from collections import Counter
+
+    from gestifarma.conciliacion import Reglas, conciliar
+    from gestifarma.conectores import cargar_fuentes, leer_archivo
+    from gestifarma.modelos import Receta
+    from gestifarma.servicios import aplicar_extraccion
+
+    reglas = Reglas.desde_toml(RAIZ / "config" / "reglas.toml")
+    mapeo = cargar_fuentes(RAIZ / "config" / "fuentes")["colegio-ejemplo"]
+    registros = leer_archivo(RAIZ / "ejemplos" / "reporte_colegio_ejemplo.csv", mapeo).registros
+    lector, recetas = LectorLocal(), []
+    for archivo in sorted((RAIZ / "ejemplos" / "recetas").glob("*.jpg")):
+        receta = Receta(estado="procesando")
+        aplicar_extraccion(receta, lector.extraer([(archivo.read_bytes(), archivo.name)]))
+        recetas.append(receta)
+    resultados = Counter(c.resultado for c in conciliar(recetas, registros, reglas))
+    assert resultados == {
+        "ok": 2,
+        "con_diferencias": 3,
+        "observada": 1,
+        "receta_sin_registro": 1,
+        "registro_sin_receta": 1,
+    }

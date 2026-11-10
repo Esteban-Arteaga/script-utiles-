@@ -60,11 +60,15 @@ def _es_numerico(token: str) -> bool:
     return utiles / len(token) >= 0.6
 
 
+_UNIDAD_MAL_LEIDA = re.compile(r"(?<=\d)\s*(?:M9|RNG|MQ)\b")  # "20 m9", "20 rng" = "20 mg"
+
+
 def corregir_numeros(texto: str) -> str:
     """Mayúsculas sin acentos y con las confusiones típicas corregidas dentro de los números."""
     lineas = []
     for linea in sin_acentos(texto).upper().splitlines():
-        lineas.append(" ".join(t.translate(_CONFUSIONES) if _es_numerico(t) else t for t in linea.split()))
+        linea = " ".join(t.translate(_CONFUSIONES) if _es_numerico(t) else t for t in linea.split())
+        lineas.append(_UNIDAD_MAL_LEIDA.sub(" MG", linea))
     return "\n".join(lineas)
 
 

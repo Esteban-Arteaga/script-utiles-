@@ -53,6 +53,11 @@ y con un troquel en el dorso, la lectura sin IA:
 - encontró la carga correcta y confirmó los 8 datos contra el reporte de ejemplo;
 - tardó alrededor de 1 segundo por página, sin GPU.
 
+Con las 7 recetas de ejemplo de `ejemplos/recetas/` (3 simulan fotos de celular) y el reporte de ejemplo,
+la conciliación sin IA dio el resultado esperado en todos los casos: 2 OK, 3 con diferencias (afiliado mal
+cargado, receta vencida, cantidad de más), 1 para revisar (plan distinto), 1 receta sin carga y 1 carga
+sin receta.
+
 Es una prueba con imágenes generadas: **hay que medirlo con recetas reales** (ver
 [propuesta](propuesta.md#9-medir-la-precisión-antes-de-confiar)).
 
