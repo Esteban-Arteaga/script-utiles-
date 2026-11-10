@@ -1,0 +1,50 @@
+# Formato de un reporte de "lo cargado" exportado del sistema.
+#
+# Es un formato de EJEMPLO: cuando tengamos un reporte real del colegio / gerenciadora / sistema de
+# gestión de la farmacia, se copia este archivo y se ajustan los nombres de las columnas.
+# Se espera una fila por producto; las filas con el mismo número de autorización (o de receta) se
+# agrupan en una sola carga y los datos de cabecera se toman de la primera fila.
+
+nombre = "colegio-ejemplo"
+descripcion = "Formato de ejemplo (CSV separado por punto y coma)"
+
+[archivo]
+delimitador = ";"
+encoding = "utf-8-sig"      # muchos sistemas exportan en "latin-1"; si falla se prueba ese
+formato_fecha = "%d/%m/%Y"
+separador_decimal = ","
+# hoja = "Detalle"          # solo para Excel; por defecto, la primera hoja
+
+# campo de Gestifarma = "encabezado de la columna en el reporte"
+# (se compara sin importar mayúsculas, acentos ni espacios; los campos que no estén se ignoran)
+[columnas]
+nro_autorizacion = "Nro Autorizacion"
+nro_receta = "Nro Receta"
+obra_social = "Obra Social"
+plan = "Plan"
+nro_afiliado = "Nro Afiliado"
+afiliado_nombre = "Afiliado"
+medico_matricula = "Matricula"
+fecha_prescripcion = "Fecha Receta"
+fecha_dispensa = "Fecha Dispensa"
+item_descripcion = "Producto"
+item_monodroga = "Monodroga"
+item_troquel = "Troquel"
+item_codigo_barras = "Cod Barras"
+item_cantidad = "Cantidad"
+item_importe = "Importe"
+item_cobertura_pct = "Cobertura %"
+
+# Robot (RPA) opcional para descargar este reporte del portal: `gestifarma traer --fuente colegio-ejemplo ...`
+# Completar cuando tengamos acceso al portal (los selectores se obtienen inspeccionando la página).
+# [portal]
+# url_login = "https://portal.ejemplo.org.ar/login"
+# selector_usuario = "#usuario"
+# selector_clave = "#clave"
+# selector_ingresar = "button[type=submit]"
+# selector_login_ok = "text=Cerrar sesión"
+# url_reporte = "https://portal.ejemplo.org.ar/reportes/dispensas"
+# selector_desde = "#fecha-desde"
+# selector_hasta = "#fecha-hasta"
+# selector_exportar = "text=Exportar a Excel"
+# formato_fecha = "%d/%m/%Y"

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icono.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <title>{% block titulo %}Gestifarma{% endblock %} · Gestifarma</title>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="barra">
+    <a class="marca" href="/recetas">Gestifarma</a>
+    <nav>
+      <a href="/recetas" class="{{ 'activo' if seccion == 'recetas' else '' }}">Recetas</a>
+      <a href="/importaciones" class="{{ 'activo' if seccion == 'importaciones' else '' }}">Cargas del sistema</a>
+      <a href="/conciliacion" class="{{ 'activo' if seccion == 'conciliacion' else '' }}">Conciliación</a>
+    </nav>
+  </header>
+  <main class="contenedor">
+    {% if msg %}<p class="aviso aviso-ok">{{ msg }}</p>{% endif %}
+    {% if error %}<p class="aviso aviso-error">{{ error }}</p>{% endif %}
+    {% block contenido %}{% endblock %}
+  </main>
+</body>
+</html>

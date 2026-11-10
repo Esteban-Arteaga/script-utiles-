@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block titulo %}Conciliación{% endblock %}
+{% block contenido %}
+<h1>Conciliación</h1>
+
+<form class="tarjeta formulario-linea" method="post" action="/conciliacion">
+  <label class="campo">Desde <input type="date" name="desde"></label>
+  <label class="campo">Hasta <input type="date" name="hasta"></label>
+  <label class="campo">Obra social <input name="obra_social" placeholder="Todas"></label>
+  <button class="boton boton-principal" type="submit">Conciliar</button>
+</form>
+<p class="ayuda">Cruza las recetas leídas con las cargas importadas. Fechas y obra social son opcionales.</p>
+
+{% if sin_leer %}
+  <p class="aviso aviso-alerta">
+    {{ sin_leer }} receta{{ 's' if sin_leer != 1 else '' }} todavía sin datos (pendientes, leyéndose o con error):
+    no entran en la conciliación.
+  </p>
+{% endif %}
+
+{% if conteo %}
+<nav class="filtros">
+  <a href="/conciliacion" class="chip {{ 'activo' if not filtro else '' }}">Todos <b>{{ conteo.values() | sum }}</b></a>
+  {% for clave, etiqueta in etiquetas_resultado.items() if conteo[clave] %}
+    <a href="/conciliacion?filtro={{ clave }}" class="chip chip-{{ clave }} {{ 'activo' if filtro == clave else '' }}">
+      {{ etiqueta }} <b>{{ conteo[clave] }}</b>
+    </a>
+  {% endfor %}
+</nav>
+<p><a class="boton" href="/conciliacion/diferencias.csv">Descargar diferencias (Excel / CSV)</a></p>
+{% else %}
+  <p class="vacio">Todavía no se corrió ninguna conciliación.</p>
+{% endif %}
+
+<ul class="lista">
+  {% for c in casos %}
+  {% set datos = c.registro or c.receta %}
+  <li class="tarjeta">
+    <div class="fila-tarjeta">
+      <strong>
+        {% if c.receta %}<a href="/recetas/{{ c.receta.id }}">Receta #{{ c.receta.id }}</a>{% else %}Carga sin receta{% endif %}
+        · {{ datos.afiliado_nombre or 'Afiliado sin nombre' }}
+      </strong>
+      <span class="badge badge-{{ c.resultado }}">{{ etiquetas_resultado[c.resultado] }}</span>
+    </div>
+    <div class="detalle">
+      {{ datos.obra_social or '—' }}{% if datos.nro_afiliado %} · Afiliado {{ datos.nro_afiliado }}{% endif %}
+      {% if c.registro %}
+        {% if c.registro.nro_autorizacion %} · Autorización {{ c.registro.nro_autorizacion }}{% endif %}
+        {% if c.registro.nro_receta %} · Receta {{ c.registro.nro_receta }}{% endif %}
+        {% if c.registro.fecha_dispensa %} · Dispensa {{ c.registro.fecha_dispensa | fecha }}{% endif %}
+      {% endif %}
+    </div>
+    {% if c.registro and c.registro.items %}
+      <div class="detalle">Cargado:
+        {% for i in c.registro.items %}{{ i.descripcion }}{% if i.cantidad %} ×{{ i.cantidad }}{% endif %}{{ ' · ' if not loop.last }}{% endfor %}
+      </div>
+    {% endif %}
+    {% if c.discrepancias %}
+    <ul class="hallazgos">
+      {% for d in c.discrepancias %}
+      <li>
+        <span class="badge badge-{{ d.severidad }}">{{ etiquetas_severidad[d.severidad] }}</span>
+        {{ d.mensaje }}
+        {% if d.valor_receta or d.valor_sistema %}
+          <div class="valores">Receta: <b>{{ d.valor_receta or '—' }}</b> · Sistema: <b>{{ d.valor_sistema or '—' }}</b></div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}

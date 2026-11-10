@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block titulo %}Recetas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Recetas</h1>
+  <a class="boton boton-principal" href="/recetas/nueva">+ Nueva receta</a>
+</div>
+
+<nav class="filtros">
+  <a href="/recetas" class="chip {{ 'activo' if not filtro else '' }}">Todas</a>
+  {% for clave, etiqueta in etiquetas_situacion.items() if conteo[clave] %}
+    <a href="/recetas?filtro={{ clave }}" class="chip chip-{{ clave }} {{ 'activo' if filtro == clave else '' }}">
+      {{ etiqueta }} <b>{{ conteo[clave] }}</b>
+    </a>
+  {% endfor %}
+</nav>
+
+{% if not recetas %}
+  <p class="vacio">No hay recetas{{ ' con ese filtro' if filtro else ' todavía. Empezá sacándole una foto a una receta' }}.</p>
+{% endif %}
+
+<ul class="lista">
+  {% for receta in recetas %}
+  {% set estado = situacion(receta) %}
+  <li>
+    <a class="tarjeta tarjeta-link" href="/recetas/{{ receta.id }}">
+      <div class="fila-tarjeta">
+        <strong>#{{ receta.id }} · {{ receta.afiliado_nombre or 'Sin datos del afiliado' }}</strong>
+        <span class="badge badge-{{ estado }}">{{ etiquetas_situacion[estado] }}</span>
+      </div>
+      <div class="detalle">
+        {{ receta.obra_social or '—' }}{% if receta.nro_afiliado %} · Afiliado {{ receta.nro_afiliado }}{% endif %}
+        {% if receta.fecha_prescripcion %} · Recetada {{ receta.fecha_prescripcion | fecha }}{% endif %}
+      </div>
+      {% if receta.items %}
+      <div class="detalle">{{ receta.items | map(attribute='descripcion') | join(' · ') }}</div>
+      {% endif %}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endblock %}

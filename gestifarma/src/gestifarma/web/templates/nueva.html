@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}Nueva receta{% endblock %}
+{% block contenido %}
+<h1>Nueva receta</h1>
+
+{% if not lectura_ia %}
+<p class="aviso aviso-alerta">
+  La lectura automática con IA está apagada (falta configurar <code>ANTHROPIC_API_KEY</code>).
+  Las recetas se guardan igual y los datos se completan a mano.
+</p>
+{% endif %}
+
+<form class="tarjeta" method="post" action="/recetas" enctype="multipart/form-data">
+  <h2>Una receta</h2>
+  <p class="ayuda">Foto bien de frente, con buena luz y la receta entera en la imagen.</p>
+  <input type="hidden" name="modo" value="una">
+  <label class="campo">Frente de la receta
+    <input type="file" name="archivos" accept="image/*,application/pdf" capture="environment" required>
+  </label>
+  <label class="campo">Dorso (firma del afiliado, troqueles, ticket) — opcional
+    <input type="file" name="archivos" accept="image/*,application/pdf" capture="environment">
+  </label>
+  <button class="boton boton-principal" type="submit">Subir receta</button>
+</form>
+
+<form class="tarjeta" method="post" action="/recetas" enctype="multipart/form-data">
+  <h2>Varias recetas a la vez</h2>
+  <p class="ayuda">
+    Para lo que sale del escáner o de la galería: <b>cada archivo es una receta</b>
+    (por ejemplo, un PDF por receta con frente y dorso).
+  </p>
+  <input type="hidden" name="modo" value="varias">
+  <label class="campo">Archivos
+    <input type="file" name="archivos" accept="image/*,application/pdf" multiple required>
+  </label>
+  <button class="boton" type="submit">Subir recetas</button>
+</form>
+{% endblock %}

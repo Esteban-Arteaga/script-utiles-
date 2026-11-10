@@ -1,0 +1,31 @@
+# Reglas de conciliación.
+#
+# [general] aplica a todas las obras sociales. Cada [obras_sociales."NOMBRE"] pisa solo lo que define.
+# IMPORTANTE: los valores de este archivo son un PUNTO DE PARTIDA. Hay que confirmarlos con el
+# convenio de cada obra social / gerenciadora / colegio (ver docs/relevamiento.md).
+
+[general]
+dias_validez_receta = 30        # días entre la prescripción y la dispensa
+max_items_por_receta = 3        # medicamentos distintos por receta
+tolerancia_importe = 1.00       # diferencia en pesos que se ignora al comparar importes
+exigir_firma_medico = true
+exigir_sello_medico = true
+exigir_firma_afiliado = true    # firma de quien retira, en el dorso
+exigir_diagnostico = false
+
+# Nombres distintos para la misma obra social (en la receta, en el sistema, abreviaturas).
+[alias_obras_sociales]
+"PAMI" = ["INSSJP", "Instituto Nacional de Servicios Sociales para Jubilados y Pensionados"]
+
+# Excepciones por obra social. Ejemplo ilustrativo (no es una regla real):
+[obras_sociales."OBRA SOCIAL EJEMPLO"]
+dias_validez_receta = 60
+exigir_diagnostico = true
+
+# Umbrales para comparar textos (0 a 1). Tocar solo si hay muchos falsos positivos o negativos.
+[similitud]
+umbral_nombre_ok = 0.85
+umbral_nombre_dudoso = 0.6
+umbral_producto = 0.85
+umbral_producto_minimo = 0.5
+umbral_obra_social = 0.8

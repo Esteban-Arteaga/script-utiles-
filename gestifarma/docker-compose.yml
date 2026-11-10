@@ -1,0 +1,31 @@
+services:
+  gestifarma:
+    build: .
+    env_file: .env
+    ports:
+      # Por defecto solo accesible desde esta máquina. Con HTTPS (perfil "https") se entra por Caddy.
+      - "${GESTIFARMA_BIND:-127.0.0.1}:8000:8000"
+    volumes:
+      - datos:/datos                  # base de datos y fotos: incluir en el backup
+      - ./config:/app/config:ro       # reglas y formatos editables sin reconstruir la imagen
+    restart: unless-stopped
+
+  # HTTPS automático con certificado gratuito: docker compose --profile https up -d
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      GESTIFARMA_DOMINIO: ${GESTIFARMA_DOMINIO:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_datos:/data
+    depends_on:
+      - gestifarma
+
+volumes:
+  datos:
+  caddy_datos:

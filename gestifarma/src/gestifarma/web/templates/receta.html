@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block titulo %}Receta #{{ receta.id }}{% endblock %}
+{% block head %}{% if receta.estado == 'procesando' %}<meta http-equiv="refresh" content="4">{% endif %}{% endblock %}
+{% block contenido %}
+{% set estado = situacion(receta) %}
+{% set dudosos = receta.campos_dudosos or [] %}
+{% set c = receta.conciliacion %}
+
+<div class="encabezado">
+  <h1>Receta #{{ receta.id }}</h1>
+  <span class="badge badge-{{ estado }}">{{ etiquetas_situacion[estado] }}</span>
+</div>
+
+{% if receta.estado == 'procesando' %}
+  <p class="aviso aviso-alerta">La IA está leyendo la receta. Esta página se actualiza sola.</p>
+{% elif receta.estado == 'pendiente' %}
+  <p class="aviso aviso-alerta">Completá los datos mirando la imagen y guardá.</p>
+{% endif %}
+{% if receta.error %}<p class="aviso aviso-error">{{ receta.error }}</p>{% endif %}
+
+<div class="dos-columnas">
+  <section class="imagenes">
+    {% for archivo in receta.archivos %}
+      {% if archivo.tipo_mime.startswith('image/') %}
+        <a href="/archivos/{{ archivo.id }}" target="_blank" rel="noopener">
+          <img src="/archivos/{{ archivo.id }}" alt="{{ archivo.nombre_original }}" loading="lazy">
+        </a>
+      {% else %}
+        <a class="boton" href="/archivos/{{ archivo.id }}" target="_blank" rel="noopener">Abrir {{ archivo.nombre_original }}</a>
+      {% endif %}
+    {% endfor %}
+  </section>
+
+  <section>
+    {% if c %}
+    <div class="tarjeta">
+      <h2>Conciliación</h2>
+      {% if c.registro %}
+        <p class="detalle">Carga encontrada por {{ etiquetas_criterio.get(c.criterio, c.criterio) }} · formato «{{ c.registro.fuente }}»</p>
+      {% endif %}
+      {% if not c.discrepancias %}<p>Sin diferencias: lo cargado coincide con la receta.</p>{% endif %}
+      <ul class="hallazgos">
+        {% for d in c.discrepancias %}
+        <li>
+          <span class="badge badge-{{ d.severidad }}">{{ etiquetas_severidad[d.severidad] }}</span>
+          {{ d.mensaje }}
+          {% if d.valor_receta or d.valor_sistema %}
+            <div class="valores">Receta: <b>{{ d.valor_receta or '—' }}</b> · Sistema: <b>{{ d.valor_sistema or '—' }}</b></div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if receta.observaciones %}
+      <p class="aviso aviso-alerta"><b>Nota de la lectura:</b> {{ receta.observaciones }}</p>
+    {% endif %}
+
+    <form class="tarjeta" method="post" action="/recetas/{{ receta.id }}">
+      <h2>Datos de la receta</h2>
+      {% if dudosos %}
+        <p class="ayuda">Lo marcado en amarillo se leyó con dudas: confirmalo mirando la imagen.</p>
+      {% endif %}
+
+      <fieldset>
+        <legend>Afiliado</legend>
+        {% for campo, etiqueta in [('obra_social', 'Obra social'), ('plan', 'Plan'), ('nro_afiliado', 'Nro de afiliado'),
+                                   ('afiliado_nombre', 'Nombre'), ('afiliado_dni', 'DNI')] %}
+          <label class="campo {{ 'dudoso' if campo in dudosos else '' }}">{{ etiqueta }}
+            <input name="{{ campo }}" value="{{ receta[campo] or '' }}">
+          </label>
+        {% endfor %}
+      </fieldset>
+
+      <fieldset>
+        <legend>Médico</legend>
+        {% for campo, etiqueta in [('medico_nombre', 'Nombre'), ('medico_matricula', 'Matrícula'), ('diagnostico', 'Diagnóstico')] %}
+          <label class="campo {{ 'dudoso' if campo in dudosos else '' }}">{{ etiqueta }}
+            <input name="{{ campo }}" value="{{ receta[campo] or '' }}">
+          </label>
+        {% endfor %}
+      </fieldset>
+
+      <fieldset>
+        <legend>Receta</legend>
+        {% for campo, etiqueta in [('nro_receta', 'Nro de receta'), ('nro_autorizacion', 'Nro de autorización')] %}
+          <label class="campo {{ 'dudoso' if campo in dudosos else '' }}">{{ etiqueta }}
+            <input name="{{ campo }}" value="{{ receta[campo] or '' }}">
+          </label>
+        {% endfor %}
+        {% for campo, etiqueta in [('fecha_prescripcion', 'Fecha de prescripción'), ('fecha_dispensa', 'Fecha de dispensa')] %}
+          <label class="campo {{ 'dudoso' if campo in dudosos else '' }}">{{ etiqueta }}
+            <input type="date" name="{{ campo }}" value="{{ receta[campo].isoformat() if receta[campo] else '' }}">
+          </label>
+        {% endfor %}
+        <label class="campo">Tipo
+          <select name="tipo_receta">
+            {% for valor, etiqueta in [('', '—'), ('manuscrita', 'Manuscrita'), ('impresa', 'Impresa'),
+                                       ('electronica', 'Electrónica'), ('otro', 'Otro')] %}
+              <option value="{{ valor }}" {{ 'selected' if (receta.tipo_receta or '') == valor else '' }}>{{ etiqueta }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Firmas y sellos</legend>
+        {% for campo, etiqueta in [('firma_medico', 'Firma del médico'), ('sello_medico', 'Sello del médico'),
+                                   ('firma_afiliado', 'Firma del afiliado (dorso)')] %}
+          {% set valor = receta[campo] %}
+          <label class="campo {{ 'dudoso' if campo in dudosos else '' }}">{{ etiqueta }}
+            <select name="{{ campo }}">
+              <option value="" {{ 'selected' if valor is none else '' }}>No se ve</option>
+              <option value="si" {{ 'selected' if valor is sameas true else '' }}>Sí</option>
+              <option value="no" {{ 'selected' if valor is sameas false else '' }}>No tiene</option>
+            </select>
+          </label>
+        {% endfor %}
+      </fieldset>
+
+      <fieldset>
+        <legend>Importes del ticket (si figuran)</legend>
+        {% for campo, etiqueta in [('importe_total', 'Importe total'), ('importe_obra_social', 'A cargo de la obra social')] %}
+          <label class="campo {{ 'dudoso' if campo in dudosos else '' }}">{{ etiqueta }}
+            <input name="{{ campo }}" inputmode="decimal" value="{{ receta[campo] if receta[campo] is not none else '' }}">
+          </label>
+        {% endfor %}
+      </fieldset>
+
+      <fieldset class="{{ 'dudoso' if 'items' in dudosos else '' }}">
+        <legend>Medicamentos recetados</legend>
+        <div class="tabla-scroll">
+          <table class="items">
+            <thead><tr><th>Medicamento (como figura)</th><th>Cant.</th><th>Troquel</th><th>Cód. barras</th></tr></thead>
+            <tbody>
+              {% for item in receta.items %}
+              <tr>
+                <td><input name="item_descripcion" value="{{ item.descripcion }}"></td>
+                <td><input name="item_cantidad" inputmode="numeric" value="{{ item.cantidad if item.cantidad is not none else '' }}"></td>
+                <td><input name="item_troquel" inputmode="numeric" value="{{ item.troquel or '' }}"></td>
+                <td><input name="item_codigo_barras" inputmode="numeric" value="{{ item.codigo_barras or '' }}"></td>
+              </tr>
+              {% endfor %}
+              {% for _ in range([3 - receta.items | length, 1] | max) %}
+              <tr>
+                <td><input name="item_descripcion" placeholder="Agregar medicamento"></td>
+                <td><input name="item_cantidad" inputmode="numeric"></td>
+                <td><input name="item_troquel" inputmode="numeric"></td>
+                <td><input name="item_codigo_barras" inputmode="numeric"></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </fieldset>
+
+      <button class="boton boton-principal" type="submit">Guardar revisión</button>
+    </form>
+
+    <div class="acciones">
+      {% if lectura_ia %}
+      <form method="post" action="/recetas/{{ receta.id }}/leer">
+        <button class="boton" type="submit">Volver a leer con IA</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/recetas/{{ receta.id }}/eliminar"
+            onsubmit="return confirm('¿Eliminar la receta #{{ receta.id }} y sus imágenes?')">
+        <button class="boton boton-peligro" type="submit">Eliminar</button>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}

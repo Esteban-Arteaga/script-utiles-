@@ -1,0 +1,4 @@
+{$GESTIFARMA_DOMINIO} {
+	encode gzip
+	reverse_proxy gestifarma:8000
+}

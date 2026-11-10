@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block titulo %}Cargas del sistema{% endblock %}
+{% block contenido %}
+<h1>Cargas del sistema</h1>
+<p class="ayuda">
+  Subí el reporte de lo cargado (Excel o CSV) que se descarga del sistema de la obra social, la gerenciadora
+  o el colegio. Si una carga ya existía (mismo número de autorización o de receta), se reemplaza: se puede
+  volver a importar después de corregir.
+</p>
+
+{% if not fuentes %}
+  <p class="aviso aviso-error">No hay formatos de reporte configurados en <code>config/fuentes/</code>.</p>
+{% else %}
+<form class="tarjeta" method="post" action="/importaciones" enctype="multipart/form-data">
+  <label class="campo">Formato del reporte
+    <select name="fuente" required>
+      {% for nombre, fuente in fuentes.items() %}
+        <option value="{{ nombre }}">{{ nombre }}{% if fuente.descripcion %} — {{ fuente.descripcion }}{% endif %}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="campo">Archivo
+    <input type="file" name="archivo" accept=".csv,.txt,.xlsx,.xlsm" required>
+  </label>
+  <button class="boton boton-principal" type="submit">Importar</button>
+</form>
+{% endif %}
+
+<h2>Últimas importaciones</h2>
+{% if not importaciones %}
+  <p class="vacio">Todavía no se importó ningún reporte.</p>
+{% else %}
+<div class="tabla-scroll">
+  <table class="tabla">
+    <thead><tr><th>Fecha</th><th>Formato</th><th>Archivo</th><th>Filas</th><th>Cargas vigentes</th><th>Errores</th></tr></thead>
+    <tbody>
+      {% for imp in importaciones %}
+      <tr>
+        <td>{{ imp.creada_en | fecha_hora }}</td>
+        <td>{{ imp.fuente }}</td>
+        <td>{{ imp.nombre_archivo }}</td>
+        <td>{{ imp.filas_leidas }}</td>
+        <td>{{ cargas.get(imp.id, 0) }}</td>
+        <td>
+          {% if imp.errores %}
+            <details><summary>{{ imp.errores | length }}</summary>
+              <ul>{% for e in imp.errores %}<li>{{ e }}</li>{% endfor %}</ul>
+            </details>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gestifarma"
+version = "0.1.0"
+description = "Conciliación de recetas contra lo cargado en los sistemas de obras sociales, gerenciadoras y colegio de farmacéuticos."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Propietario" }
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "sqlalchemy>=2.0",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "anthropic>=2.7,<3",
+    "openpyxl>=3.1",
+    "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+rpa = ["playwright>=1.44"]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+gestifarma = "gestifarma.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gestifarma"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["B008", "B905"]  # B008: patrón de FastAPI (Depends/File). B905: zip sin strict a propósito.
