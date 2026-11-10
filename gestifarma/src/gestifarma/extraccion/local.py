@@ -10,10 +10,13 @@ En cascada, de lo más exacto a lo menos:
 from __future__ import annotations
 
 import io
+import os
 import shutil
 import subprocess
+import tempfile
 import time
 from collections.abc import Iterator
+from pathlib import Path
 
 import zxingcpp
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -23,6 +26,20 @@ from .claude import ErrorExtraccion, ResultadoExtraccion
 
 MAX_PAGINAS_PDF = 6
 MIN_TEXTO_PDF = 40  # menos que esto: PDF escaneado (imagen), hay que pasarle OCR
+
+
+RUTAS_TESSERACT_WINDOWS = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+)
+
+
+def ruta_tesseract() -> str | None:
+    """Tesseract: la ruta de GESTIFARMA_TESSERACT, el que esté en el PATH o el instalador de Windows."""
+    configurada = os.environ.get("GESTIFARMA_TESSERACT")
+    if configurada:
+        return configurada if Path(configurada).exists() else None
+    return shutil.which("tesseract") or next((r for r in RUTAS_TESSERACT_WINDOWS if Path(r).exists()), None)
 
 
 class LectorLocal:
@@ -80,21 +97,31 @@ class LectorLocal:
         return self._ocr_tesseract(imagen)
 
     def _ocr_tesseract(self, imagen: Image.Image) -> str:
-        if shutil.which("tesseract") is None:
+        ejecutable = ruta_tesseract()
+        if ejecutable is None:
             raise ErrorExtraccion(
-                "No está instalado Tesseract (OCR). En Debian/Ubuntu: apt-get install tesseract-ocr tesseract-ocr-spa"
+                "No se encontró Tesseract (OCR). Windows: winget install UB-Mannheim.TesseractOCR (o definir "
+                "GESTIFARMA_TESSERACT con la ruta a tesseract.exe). Debian/Ubuntu: apt-get install tesseract-ocr "
+                "tesseract-ocr-spa. macOS: brew install tesseract tesseract-lang."
             )
-        png = io.BytesIO()
-        imagen.save(png, format="PNG")
-        proceso = subprocess.run(
-            ["tesseract", "stdin", "stdout", "-l", self.idioma, "--psm", "3"],
-            input=png.getvalue(),
-            capture_output=True,
-            timeout=120,
-            check=False,
-        )
+        # Se pasa por un archivo temporal (y no por la entrada estándar) para que ande igual en Windows.
+        with tempfile.TemporaryDirectory() as carpeta:
+            entrada = Path(carpeta) / "pagina.png"
+            imagen.save(entrada, format="PNG")
+            proceso = subprocess.run(
+                [ejecutable, str(entrada), "stdout", "-l", self.idioma, "--psm", "3"],
+                capture_output=True,
+                timeout=120,
+                check=False,
+            )
         if proceso.returncode != 0:
-            raise ErrorExtraccion(f"Tesseract falló: {proceso.stderr.decode(errors='replace')[:300]}")
+            error = proceso.stderr.decode(errors="replace")
+            if "Failed loading language" in error or "Error opening data file" in error:
+                raise ErrorExtraccion(
+                    f"A Tesseract le falta el idioma «{self.idioma}» ({self.idioma}.traineddata). "
+                    "Copiarlo a la carpeta tessdata de Tesseract (ver README, sección Windows)."
+                )
+            raise ErrorExtraccion(f"Tesseract falló: {error[:300]}")
         return proceso.stdout.decode("utf-8", errors="replace")
 
     def _ocr_rapidocr(self, imagen: Image.Image) -> str:

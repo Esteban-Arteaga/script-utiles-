@@ -44,8 +44,7 @@ sin cargar y carga sin receta.
 
 ```bash
 cp .env.example .env        # completar usuario y clave (la clave de la API de Claude es opcional)
-set -a && source .env && set +a
-gestifarma servidor         # http://127.0.0.1:8000
+gestifarma servidor         # http://127.0.0.1:8000 (el .env se lee solo)
 ```
 
 - Las recetas se leen sin IA. Con `ANTHROPIC_API_KEY` aparece además el botón "Leer con IA" en cada receta.
@@ -56,6 +55,46 @@ gestifarma servidor         # http://127.0.0.1:8000
   Salen 2 OK, 3 con diferencias, 1 para revisar, 1 receta sin carga y 1 carga sin receta. Las imágenes se
   generan con `python scripts/generar_recetas_ejemplo.py` (datos inventados).
 - Una sola receta desde la terminal: `gestifarma leer ejemplos/recetas/01-gomez.jpg`.
+
+### En Windows (PowerShell)
+
+Una sola vez, instalar Python, Git y Tesseract (OCR):
+
+```powershell
+winget install -e --id Python.Python.3.12
+winget install -e --id Git.Git
+winget install -e --id UB-Mannheim.TesseractOCR
+```
+
+Cerrar y volver a abrir PowerShell. Después, en una PowerShell **como administrador**, agregar el español a
+Tesseract:
+
+```powershell
+curl.exe -L -o "C:\Program Files\Tesseract-OCR\tessdata\spa.traineddata" `
+  https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
+& "C:\Program Files\Tesseract-OCR\tesseract.exe" --list-langs   # tiene que aparecer spa
+```
+
+Bajar el proyecto, instalarlo y levantarlo (PowerShell común):
+
+```powershell
+cd $HOME\Documents
+git clone --branch claude/gestifarma-reconciliation-app-xc3dot https://github.com/Esteban-Arteaga/script-utiles-.git
+cd script-utiles-\gestifarma
+py -3.12 -m venv .venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force   # permite activar el entorno en esta ventana
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e .
+gestifarma cargar-ejemplos     # opcional: carga las 7 recetas de ejemplo y concilia
+gestifarma servidor            # abrir http://127.0.0.1:8000 (Ctrl+C para cortar)
+```
+
+- Gestifarma encuentra Tesseract en `C:\Program Files\Tesseract-OCR` aunque no esté en el PATH. Si está en
+  otro lado: `$env:GESTIFARMA_TESSERACT = "C:\ruta\tesseract.exe"`.
+- La configuración va en un archivo `.env` (`Copy-Item .env.example .env` y `notepad .env`): se lee solo,
+  sin exportar variables.
+- Para empezar de cero: `Remove-Item -Recurse -Force .\datos`.
 
 ### Con Docker
 
@@ -97,7 +136,8 @@ Archivos de configuración:
 
 | Comando | Qué hace |
 |---|---|
-| `gestifarma demo` | Concilia los datos de ejemplo. |
+| `gestifarma demo` | Concilia los datos de ejemplo en una base temporal (no necesita OCR). |
+| `gestifarma cargar-ejemplos` | Lee las 7 recetas de ejemplo sin IA, importa el reporte de ejemplo y concilia en la base local. |
 | `gestifarma servidor [--host] [--port]` | Levanta la app web. |
 | `gestifarma leer FOTO [FOTO ...] [--ia]` | Lee una receta (frente, dorso o PDF) y muestra el JSON: sin IA, o con IA usando `--ia`. |
 | `gestifarma importar ARCHIVO --fuente NOMBRE` | Importa un reporte de lo cargado. |

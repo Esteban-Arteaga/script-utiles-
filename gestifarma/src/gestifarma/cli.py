@@ -13,13 +13,14 @@ from datetime import date
 from pathlib import Path
 
 from . import servicios
+from .almacenamiento import AlmacenLocal
 from .conciliacion.motor import Resultado
 from .conciliacion.reglas import Reglas
 from .conectores.archivo import ErrorImportacion, cargar_fuentes
-from .config import Config
+from .config import Config, cargar_env
 from .db import crear_engine, crear_sesiones, inicializar
 from .extraccion import ExtraccionReceta, ExtractorClaude
-from .extraccion.local import LectorLocal
+from .extraccion.local import LectorLocal, ruta_tesseract
 from .modelos import Conciliacion
 
 ICONOS = {  # en orden de urgencia
@@ -63,7 +64,13 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("demo", help="concilia los datos de ejemplo (no necesita IA ni configuración)")
     p.add_argument("--ejemplos", type=Path, default=Path("ejemplos"))
 
+    p = sub.add_parser(
+        "cargar-ejemplos", help="lee las recetas de ejemplo, importa el reporte de ejemplo y concilia en la base local"
+    )
+    p.add_argument("--ejemplos", type=Path, default=Path("ejemplos"))
+
     args = parser.parse_args(argv)
+    cargar_env()
     config = Config.desde_entorno()
 
     if args.comando == "servidor":
@@ -77,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
         return _leer(config, args.archivos, args.ia)
     if args.comando == "demo":
         return _demo(config, args.ejemplos)
+    if args.comando == "cargar-ejemplos":
+        return _cargar_ejemplos(config, args.ejemplos)
 
     config.data_dir.mkdir(parents=True, exist_ok=True)
     engine = crear_engine(config.database_url)
@@ -164,7 +173,9 @@ def _demo(config: Config, ejemplos: Path) -> int:
         )
         return 2
     with tempfile.TemporaryDirectory() as directorio:
-        config_demo = replace(config, data_dir=Path(directorio), database_url=f"sqlite:///{directorio}/demo.db")
+        config_demo = replace(
+            config, data_dir=Path(directorio), database_url=f"sqlite:///{(Path(directorio) / 'demo.db').as_posix()}"
+        )
         engine = crear_engine(config_demo.database_url)
         inicializar(engine)
         sesiones = crear_sesiones(engine)
@@ -185,6 +196,47 @@ def _demo(config: Config, ejemplos: Path) -> int:
             + ", ".join(f"{ICONOS[k].strip()} {resumen.por_resultado[k]}" for k in ICONOS if resumen.por_resultado[k])
         )
         engine.dispose()
+    return 0
+
+
+def _cargar_ejemplos(config: Config, ejemplos: Path) -> int:
+    """Hace el circuito completo con los ejemplos, como lo haría el backoffice desde la app."""
+    imagenes = sorted((ejemplos / "recetas").glob("*.jpg"))
+    reporte = ejemplos / "reporte_colegio_ejemplo.csv"
+    if not imagenes or not reporte.exists():
+        print(
+            f"No encuentro los ejemplos en {ejemplos.resolve()} (correr desde la carpeta gestifarma).", file=sys.stderr
+        )
+        return 2
+    if config.ocr == "tesseract" and ruta_tesseract() is None:
+        print(
+            "No se encontró Tesseract (OCR): instalarlo o definir GESTIFARMA_TESSERACT (ver README).", file=sys.stderr
+        )
+        return 2
+    config.data_dir.mkdir(parents=True, exist_ok=True)
+    engine = crear_engine(config.database_url)
+    inicializar(engine)
+    sesiones = crear_sesiones(engine)
+    almacen = AlmacenLocal(config.archivos_dir)
+    lector = LectorLocal(config.ocr)
+    # Cada paso en su propia sesión, como en la app: así la conciliación ve el estado real de cada receta.
+    for imagen in imagenes:
+        with sesiones() as sesion:
+            archivo = servicios.ArchivoSubido(imagen.name, imagen.read_bytes())
+            receta_id = servicios.crear_receta(sesion, [archivo], almacen, se_lee_con_ia=True).id
+        servicios.leer_receta(receta_id, sesiones, lector, almacen)
+        print(f"Receta #{receta_id} leída sin IA: {imagen.name}")
+    with sesiones() as sesion:
+        fuente = cargar_fuentes(config.fuentes_dir)["colegio-ejemplo"]
+        importacion = servicios.importar(sesion, reporte, reporte.name, fuente)
+        print(f"Reporte importado: {len(importacion.registros)} cargas.")
+    with sesiones() as sesion:
+        resumen = servicios.conciliar_y_guardar(sesion, _reglas(config))
+    print(
+        "\nResumen: "
+        + ", ".join(f"{ICONOS[k].strip()} {resumen.por_resultado[k]}" for k in ICONOS if resumen.por_resultado[k])
+    )
+    print(f"Datos guardados en {config.data_dir}. Para verlos: gestifarma servidor -> http://127.0.0.1:8000")
     return 0
 
 

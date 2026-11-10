@@ -9,6 +9,22 @@ from pathlib import Path
 MODELO_POR_DEFECTO = "claude-opus-5-5"
 
 
+def cargar_env(ruta: Path = Path(".env")) -> None:
+    """Carga un archivo .env (CLAVE=valor). No pisa variables ya definidas ni carga valores vacíos.
+    Así anda igual en PowerShell, cmd o bash, sin tener que exportar las variables a mano."""
+    if not ruta.is_file():
+        return
+    for linea in ruta.read_text(encoding="utf-8-sig").splitlines():
+        linea = linea.strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+        clave, valor = linea.split("=", 1)
+        clave = clave.strip().removeprefix("export ").strip()
+        valor = valor.strip().strip('"').strip("'")
+        if clave and valor and clave not in os.environ:
+            os.environ[clave] = valor
+
+
 def _si_no(valor: str | None) -> bool | None:
     if valor is None or not valor.strip():
         return None
@@ -51,7 +67,9 @@ class Config:
         lectura_ia = _si_no(os.environ.get("GESTIFARMA_LECTURA_IA"))
         return cls(
             data_dir=data_dir,
-            database_url=os.environ.get("GESTIFARMA_DATABASE_URL", f"sqlite:///{data_dir / 'gestifarma.db'}"),
+            database_url=os.environ.get(
+                "GESTIFARMA_DATABASE_URL", f"sqlite:///{(data_dir / 'gestifarma.db').as_posix()}"
+            ),
             config_dir=Path(os.environ.get("GESTIFARMA_CONFIG_DIR", "config")).resolve(),
             usuario=os.environ.get("GESTIFARMA_USUARIO") or None,
             clave=os.environ.get("GESTIFARMA_CLAVE") or None,

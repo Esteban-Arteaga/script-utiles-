@@ -1,4 +1,3 @@
-import shutil
 from datetime import date
 from io import BytesIO
 
@@ -7,9 +6,9 @@ import zxingcpp
 from fabricas import RAIZ, pdf_con_texto
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from gestifarma.extraccion.local import LectorLocal
+from gestifarma.extraccion.local import LectorLocal, ruta_tesseract
 
-pytestmark = pytest.mark.skipif(shutil.which("tesseract") is None, reason="falta Tesseract (OCR)")
+pytestmark = pytest.mark.skipif(ruta_tesseract() is None, reason="falta Tesseract (OCR)")
 
 FRENTE = (RAIZ / "ejemplos" / "receta_sintetica.jpg").read_bytes()
 

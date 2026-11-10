@@ -1,6 +1,5 @@
 import base64
 import json
-import shutil
 from io import BytesIO
 
 import pytest
@@ -10,6 +9,7 @@ from PIL import Image
 
 from gestifarma.config import Config
 from gestifarma.extraccion import ExtraccionReceta, ResultadoExtraccion
+from gestifarma.extraccion.local import ruta_tesseract
 from gestifarma.web import crear_app
 
 RECETA_GOMEZ = json.loads((RAIZ / "ejemplos" / "recetas_ejemplo.json").read_text(encoding="utf-8"))[0]
@@ -156,7 +156,7 @@ def test_eliminar_receta_borra_los_archivos(cliente, tmp_path):
     assert not list((tmp_path / "archivos").rglob("*.jpg"))
 
 
-@pytest.mark.skipif(shutil.which("tesseract") is None, reason="falta Tesseract")
+@pytest.mark.skipif(ruta_tesseract() is None, reason="falta Tesseract")
 def test_lectura_sin_ia_de_punta_a_punta(tmp_path):
     """Por defecto se lee sin IA: la receta de ejemplo se cruza con su carga y se confirman sus datos."""
     cliente = TestClient(crear_app(configuracion(tmp_path)), headers=CREDENCIALES)
