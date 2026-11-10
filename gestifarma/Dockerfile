@@ -6,6 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     GESTIFARMA_DATA_DIR=/datos \
     GESTIFARMA_CONFIG_DIR=/app/config
 
+# OCR para la lectura sin IA (Tesseract con datos de español)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY pyproject.toml README.md ./

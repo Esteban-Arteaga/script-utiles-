@@ -5,11 +5,17 @@
 {% set estado = situacion(receta) %}
 {% set dudosos = receta.campos_dudosos or [] %}
 {% set c = receta.conciliacion %}
+{% set lectura = receta.extraccion or {} %}
 
 <div class="encabezado">
   <h1>Receta #{{ receta.id }}</h1>
   <span class="badge badge-{{ estado }}">{{ etiquetas_situacion[estado] }}</span>
 </div>
+{% if lectura.get('lector') == 'local' %}
+  <p class="detalle">Leída sin IA (OCR en el servidor, sin costo) · {{ lectura.get('uso', {}).get('segundos', '') }} s</p>
+{% elif lectura.get('lector') == 'claude' %}
+  <p class="detalle">Leída con IA ({{ lectura.get('modelo') }})</p>
+{% endif %}
 
 {% if receta.estado == 'procesando' %}
   <p class="aviso aviso-alerta">La IA está leyendo la receta. Esta página se actualiza sola.</p>
@@ -38,6 +44,9 @@
       {% if c.registro %}
         <p class="detalle">Carga encontrada por {{ etiquetas_criterio.get(c.criterio, c.criterio) }} · formato «{{ c.registro.fuente }}»</p>
       {% endif %}
+      {% if c.confirmados %}
+        <p class="confirmados">Confirmado en la imagen: {{ c.confirmados | join(' · ') }}</p>
+      {% endif %}
       {% if not c.discrepancias %}<p>Sin diferencias: lo cargado coincide con la receta.</p>{% endif %}
       <ul class="hallazgos">
         {% for d in c.discrepancias %}
@@ -51,6 +60,18 @@
         {% endfor %}
       </ul>
     </div>
+    {% endif %}
+
+    {% if lectura.get('lector') == 'local' and lectura.get('paginas') %}
+    <details class="tarjeta">
+      <summary>Texto leído sin IA</summary>
+      {% for pagina in lectura.paginas %}
+        <h3>{{ pagina.lado | capitalize }} · {{ pagina.archivo }}{% if pagina.pagina > 1 %} (pág. {{ pagina.pagina }}){% endif %}
+            · {{ 'texto del PDF' if pagina.fuente == 'pdf' else 'OCR' }}</h3>
+        <pre class="texto-leido">{{ pagina.texto or '(sin texto)' }}</pre>
+        {% if pagina.codigos %}<p class="detalle">Códigos leídos: {{ pagina.codigos | join(' · ') }}</p>{% endif %}
+      {% endfor %}
+    </details>
     {% endif %}
 
     {% if receta.observaciones %}
@@ -159,9 +180,15 @@
     </form>
 
     <div class="acciones">
-      {% if lectura_ia %}
+      {% if lectura_automatica %}
       <form method="post" action="/recetas/{{ receta.id }}/leer">
-        <button class="boton" type="submit">Volver a leer con IA</button>
+        <button class="boton" type="submit">Volver a leer</button>
+      </form>
+      {% endif %}
+      {% if ia_a_pedido %}
+      <form method="post" action="/recetas/{{ receta.id }}/leer">
+        <input type="hidden" name="con" value="ia">
+        <button class="boton" type="submit" title="Usa la API de Claude: tiene costo por receta">Leer con IA</button>
       </form>
       {% endif %}
       <form method="post" action="/recetas/{{ receta.id }}/eliminar"

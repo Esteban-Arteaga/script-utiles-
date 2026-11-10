@@ -281,6 +281,7 @@ def conciliar_y_guardar(
                 registro=cruce.registro,
                 resultado=cruce.resultado,
                 criterio=cruce.criterio,
+                confirmados=cruce.confirmados,
                 discrepancias=[
                     Discrepancia(
                         campo=h.campo,
@@ -293,6 +294,11 @@ def conciliar_y_guardar(
                 ],
             )
         )
+        if cruce.receta is not None and cruce.valores:
+            # Lectura sin IA: se muestran en la receta los datos que se encontraron en la imagen.
+            for campo, valor in cruce.valores.items():
+                setattr(cruce.receta, campo, valor)
+            cruce.receta.campos_dudosos = [c for c in cruce.receta.campos_dudosos or [] if c not in cruce.valores]
         resumen.por_resultado[cruce.resultado] += 1
     sesion.commit()
     return resumen

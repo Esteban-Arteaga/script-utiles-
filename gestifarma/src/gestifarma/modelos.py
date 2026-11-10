@@ -182,6 +182,8 @@ class Conciliacion(Base):
     registro_id: Mapped[int | None] = mapped_column(ForeignKey("registros.id", ondelete="CASCADE"), index=True)
     resultado: Mapped[str] = mapped_column(String(30), index=True)
     criterio: Mapped[str | None] = mapped_column(String(30))  # cómo se encontró la carga
+    # Lectura sin IA: qué datos de la carga se encontraron en la imagen.
+    confirmados: Mapped[list[str]] = mapped_column(JSON, default=list)
 
     receta: Mapped[Receta | None] = relationship(back_populates="conciliaciones")
     registro: Mapped[RegistroSistema | None] = relationship(back_populates="conciliaciones")

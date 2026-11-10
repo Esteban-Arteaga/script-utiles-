@@ -35,10 +35,18 @@ class ErrorExtraccion(Exception):
 class ResultadoExtraccion:
     datos: ExtraccionReceta
     modelo: str
-    uso: dict = field(default_factory=dict)  # tokens consumidos: sirve para medir el costo real
+    uso: dict = field(default_factory=dict)  # tokens o segundos consumidos: sirve para medir el costo real
+    lector: str = "claude"  # "claude" (IA) o "local" (sin IA)
+    extra: dict = field(default_factory=dict)  # lectura local: texto y códigos de cada página
 
     def como_json(self) -> dict:
-        return {"datos": self.datos.model_dump(mode="json"), "modelo": self.modelo, "uso": self.uso}
+        return {
+            "lector": self.lector,
+            "datos": self.datos.model_dump(mode="json"),
+            "modelo": self.modelo,
+            "uso": self.uso,
+            **self.extra,
+        }
 
 
 class Extractor(Protocol):

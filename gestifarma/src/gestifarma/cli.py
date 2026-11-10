@@ -19,6 +19,7 @@ from .conectores.archivo import ErrorImportacion, cargar_fuentes
 from .config import Config
 from .db import crear_engine, crear_sesiones, inicializar
 from .extraccion import ExtraccionReceta, ExtractorClaude
+from .extraccion.local import LectorLocal
 from .modelos import Conciliacion
 
 ICONOS = {  # en orden de urgencia
@@ -55,8 +56,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--hasta", type=date.fromisoformat, help="AAAA-MM-DD")
     p.add_argument("--obra-social")
 
-    p = sub.add_parser("leer", help="lee una receta (fotos o PDF) con IA y muestra los datos en JSON")
+    p = sub.add_parser("leer", help="lee una receta (fotos o PDF) y muestra los datos en JSON")
     p.add_argument("archivos", type=Path, nargs="+", help="frente, dorso... de UNA receta")
+    p.add_argument("--ia", action="store_true", help="leer con IA (Claude, con costo) en vez de sin IA")
 
     p = sub.add_parser("demo", help="concilia los datos de ejemplo (no necesita IA ni configuración)")
     p.add_argument("--ejemplos", type=Path, default=Path("ejemplos"))
@@ -72,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
         uvicorn.run(crear_app(config), host=args.host, port=args.port)
         return 0
     if args.comando == "leer":
-        return _leer(config, args.archivos)
+        return _leer(config, args.archivos, args.ia)
     if args.comando == "demo":
         return _demo(config, args.ejemplos)
 
@@ -138,12 +140,15 @@ def _traer(sesiones, fuentes, fuente: str, desde: date, hasta: date) -> int:
         return _importar(sesiones, fuentes, fuente, ruta)
 
 
-def _leer(config: Config, archivos: list[Path]) -> int:
-    if not config.lectura_ia:
-        print("Falta ANTHROPIC_API_KEY para leer recetas con IA (ver .env.example).", file=sys.stderr)
-        return 2
-    extractor = ExtractorClaude(config.modelo, config.esfuerzo)
-    resultado = extractor.extraer([(a.read_bytes(), a.name) for a in archivos])
+def _leer(config: Config, archivos: list[Path], con_ia: bool) -> int:
+    if con_ia or config.lector == "claude":
+        if not config.lectura_ia:
+            print("Falta ANTHROPIC_API_KEY para leer recetas con IA (ver .env.example).", file=sys.stderr)
+            return 2
+        lector = ExtractorClaude(config.modelo, config.esfuerzo)
+    else:
+        lector = LectorLocal(config.ocr)
+    resultado = lector.extraer([(a.read_bytes(), a.name) for a in archivos])
     print(json.dumps(resultado.como_json(), ensure_ascii=False, indent=2))
     return 0
 

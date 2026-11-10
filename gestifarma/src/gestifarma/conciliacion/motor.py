@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
@@ -30,64 +29,40 @@ from ..normalizacion import (
     similitud_productos,
 )
 from .reglas import Reglas, ReglasObraSocial
+from .tipos import Criterio, Hallazgo, Resultado, ResultadoCruce, Severidad, hallazgos_vigencia
+from .verificacion import TextoReceta, emparejar_por_texto, verificar
 
-
-class Severidad:
-    ERROR = "error"
-    ADVERTENCIA = "advertencia"
-    INFO = "info"
-
-
-class Resultado:
-    OK = "ok"
-    OBSERVADA = "observada"
-    CON_DIFERENCIAS = "con_diferencias"
-    RECETA_SIN_REGISTRO = "receta_sin_registro"
-    REGISTRO_SIN_RECETA = "registro_sin_receta"
-
-
-class Criterio:
-    AUTORIZACION = "nro_autorizacion"
-    NRO_RECETA = "nro_receta"
-    AFILIADO_FECHA = "afiliado_y_fecha"
-
-
-@dataclass
-class Hallazgo:
-    campo: str
-    severidad: str
-    mensaje: str
-    valor_receta: str | None = None
-    valor_sistema: str | None = None
-
-
-@dataclass
-class ResultadoCruce:
-    receta: Receta | None
-    registro: RegistroSistema | None
-    criterio: str | None = None
-    hallazgos: list[Hallazgo] = field(default_factory=list)
-
-    @property
-    def resultado(self) -> str:
-        if self.registro is None:
-            return Resultado.RECETA_SIN_REGISTRO
-        if self.receta is None:
-            return Resultado.REGISTRO_SIN_RECETA
-        severidades = {h.severidad for h in self.hallazgos}
-        if Severidad.ERROR in severidades:
-            return Resultado.CON_DIFERENCIAS
-        if Severidad.ADVERTENCIA in severidades:
-            return Resultado.OBSERVADA
-        return Resultado.OK
+__all__ = ["Criterio", "Hallazgo", "Resultado", "ResultadoCruce", "Severidad", "conciliar"]
 
 
 def conciliar(recetas: Iterable[Receta], registros: Iterable[RegistroSistema], reglas: Reglas) -> list[ResultadoCruce]:
-    pares, recetas_libres, registros_libres = emparejar(list(recetas), list(registros), reglas)
+    recetas, registros = list(recetas), list(registros)
+    # Las recetas leídas sin IA (y no revisadas) se cruzan buscando en su texto los datos de las cargas.
+    textos = {id(r): t for r in recetas if (t := TextoReceta.de(r)) is not None}
+    con_datos = [r for r in recetas if id(r) not in textos]
+    sin_ia = [r for r in recetas if id(r) in textos]
+
+    pares, recetas_libres, registros_libres = emparejar(con_datos, registros, reglas)
     resultados = [
         ResultadoCruce(receta, registro, criterio, comparar(receta, registro, reglas))
         for receta, registro, criterio in pares
     ]
+    pares_texto, sin_ia_libres, registros_libres = emparejar_por_texto(sin_ia, textos, registros_libres, reglas)
+    obras_sociales = {r.obra_social for r in registros if r.obra_social}
+    for receta, registro, criterio in pares_texto:
+        verificacion = verificar(textos[id(receta)], registro, reglas, obras_sociales)
+        resultados.append(
+            ResultadoCruce(
+                receta, registro, criterio, verificacion.hallazgos, verificacion.confirmados, verificacion.valores
+            )
+        )
+    for receta in sin_ia_libres:
+        mensaje = (
+            "No se encontró la carga de esta receta en el sistema: en la imagen no aparece el número de "
+            "autorización, de receta ni de afiliado de ninguna carga importada. Si se dispensó, falta cargarla; "
+            "si la imagen se lee mal, completar los datos a mano o leerla con IA."
+        )
+        resultados.append(ResultadoCruce(receta, None, None, [Hallazgo("carga", Severidad.ERROR, mensaje)]))
     for receta in recetas_libres:
         mensaje = (
             "No se encontró la carga de esta receta en el sistema. Si se dispensó, "
@@ -406,29 +381,7 @@ def _comparar_fechas(receta: Receta, registro: RegistroSistema, reglas_os: Regla
 
     prescripcion = receta.fecha_prescripcion or registro.fecha_prescripcion
     dispensa = registro.fecha_dispensa or receta.fecha_dispensa
-    if prescripcion and dispensa:
-        dias = (dispensa - prescripcion).days
-        if dias < 0:
-            hallazgos.append(
-                Hallazgo(
-                    "fecha_dispensa",
-                    Severidad.ERROR,
-                    "La fecha de dispensa es anterior a la de prescripción.",
-                    formatear_fecha(prescripcion),
-                    formatear_fecha(dispensa),
-                )
-            )
-        elif dias > reglas_os.dias_validez_receta:
-            hallazgos.append(
-                Hallazgo(
-                    "fecha_prescripcion",
-                    Severidad.ERROR,
-                    f"Receta vencida al dispensar: pasaron {dias} días desde la prescripción "
-                    f"(máximo {reglas_os.dias_validez_receta}).",
-                    formatear_fecha(prescripcion),
-                    formatear_fecha(dispensa),
-                )
-            )
+    hallazgos += hallazgos_vigencia(prescripcion, dispensa, reglas_os)
     return hallazgos
 
 

@@ -18,6 +18,13 @@
   </p>
 {% endif %}
 
+{% if casos | selectattr('criterio', 'equalto', 'numeros_en_imagen') | list %}
+  <p class="aviso aviso-info">
+    Recetas leídas sin IA: se verifican los números, fechas, nombres y medicamentos que se leen en la imagen.
+    Las firmas, los sellos y la letra manuscrita se controlan a la vista.
+  </p>
+{% endif %}
+
 {% if conteo %}
 <nav class="filtros">
   <a href="/conciliacion" class="chip {{ 'activo' if not filtro else '' }}">Todos <b>{{ conteo.values() | sum }}</b></a>
@@ -55,6 +62,9 @@
       <div class="detalle">Cargado:
         {% for i in c.registro.items %}{{ i.descripcion }}{% if i.cantidad %} ×{{ i.cantidad }}{% endif %}{{ ' · ' if not loop.last }}{% endfor %}
       </div>
+    {% endif %}
+    {% if c.confirmados %}
+      <div class="confirmados">Confirmado en la imagen: {{ c.confirmados | join(' · ') }}</div>
     {% endif %}
     {% if c.discrepancias %}
     <ul class="hallazgos">

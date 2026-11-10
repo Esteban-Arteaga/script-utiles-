@@ -17,7 +17,8 @@ social no paga esa receta o la paga de menos) y cada receta que no se cargó es 
 
 Un sistema que haga el control y le deje al backoffice solo las excepciones:
 
-1. **Foto de la receta** desde el celular (o escáner). La IA lee los datos.
+1. **Foto de la receta** desde el celular (o escáner). Gestifarma la lee en su propio servidor, sin IA
+   paga y sin costo por receta ([cómo](lectura-sin-tokens.md)); la IA queda como opción a pedido.
 2. **Lo cargado en el sistema** entra a Gestifarma: al principio con el reporte que exporta el sistema;
    después, de forma automática.
 3. **Cruce automático** campo por campo. Resultado: una bandeja con lo que está bien, lo que hay que
@@ -33,7 +34,7 @@ tienen problemas.
 ```mermaid
 flowchart LR
     A[Mostrador dispensa<br/>y valida en el sistema] --> B[Foto de la receta<br/>celular o escáner]
-    B --> C[La IA lee los datos]
+    B --> C[Lectura sin IA<br/>OCR + códigos]
     A --> D[Reporte de lo cargado<br/>exportado o automático]
     C --> E{Cruce automático}
     D --> E
@@ -45,7 +46,7 @@ flowchart LR
 | Momento | Quién | Qué hace | Esfuerzo |
 |---|---|---|---|
 | Al dispensar o al cierre del día | Mostrador o backoffice | Saca foto del frente, y del dorso si tiene firma, troqueles o ticket. Desde el celular, con la app web. | ~10 segundos por receta |
-| Automático | Gestifarma | La IA lee la receta y marca lo que leyó con dudas. | — |
+| Automático | Gestifarma | Lee la receta en el servidor (texto, códigos de barras, OCR). | — |
 | Una vez por día, o antes de cerrar cada lote | Backoffice | Baja del sistema el reporte de lo cargado y lo sube (hasta que esté automatizado). | 2-3 minutos |
 | Automático | Gestifarma | Cruza todo y arma la bandeja. | — |
 | Antes de presentar | Backoffice | Mira solo lo marcado: corrige la carga, consigue la firma que falta, etc. Puede bajar la planilla de diferencias. | Solo las excepciones |
@@ -73,7 +74,7 @@ flowchart TB
         db[(Base de datos)]
         img[(Fotos y PDF)]
     end
-    ia[Claude API<br/>lectura de recetas]
+    ia[Claude API<br/>solo a pedido]
     sis[Sistemas externos<br/>obras sociales · gerenciadoras · colegio]
 
     cel --> web
@@ -89,7 +90,8 @@ flowchart TB
 | Pieza | Qué hace | Tecnología | Estado |
 |---|---|---|---|
 | App web | Fotos, bandeja, revisión, importación de reportes y conciliación. Se agrega a la pantalla del celular como una app, sin pasar por las tiendas. | FastAPI + HTML | MVP hecho |
-| Lectura de recetas | Manda las imágenes a la IA y recibe los datos en un formato fijo y validado, con los campos dudosos marcados. | Claude (visión + salida estructurada) | Hecho |
+| Lectura sin IA (por defecto) | Lee el texto de los PDF, los códigos de barras y QR, y el resto por OCR. Después busca en ese texto cada dato de la carga. | pypdfium2, zxing-cpp, Tesseract | Hecho |
+| Lectura con IA (a pedido) | Para las recetas que la lectura sin IA no puede confirmar (letra manuscrita). | Claude (visión + salida estructurada) | Hecho |
 | Conectores | Traen lo cargado: reporte exportado (CSV o Excel), robot que baja ese reporte del portal, API cuando exista. | csv / openpyxl, Playwright | Archivo: hecho · Robot: plantilla · API: a definir |
 | Motor de conciliación | Encuentra la carga de cada receta y compara campo por campo. | Python | Hecho |
 | Reglas | Vigencia, máximo de medicamentos, firmas, diagnóstico y alias de obras sociales, por obra social. | `config/reglas.toml` | Hecho (valores a confirmar) |
@@ -100,9 +102,10 @@ Decisiones de diseño:
 
 - **App web y no app nativa:** no hay que publicar en tiendas ni instalar nada, funciona en cualquier
   celular con cámara y hay una sola base de código.
-- **IA en vez de OCR tradicional:** las recetas son manuscritas y cada obra social tiene su formato. Un
-  OCR clásico devuelve texto suelto y hay que programar dónde está cada dato; la IA devuelve directamente
-  los campos (afiliado, médico, medicamentos...) y dice qué leyó con dudas.
+- **Verificar en vez de leer, y sin costo por receta:** como lo cargado ya está en el sistema, no hace
+  falta interpretar la receta campo por campo: alcanza con buscar cada dato cargado en el texto de la
+  imagen. Eso se hace con OCR gratuito en nuestro servidor, y deja la IA (que se paga por uso) solo para
+  lo que no se puede confirmar. Detalle en [lectura-sin-tokens.md](lectura-sin-tokens.md).
 - **El motor no depende de cómo llegan los datos:** da lo mismo si la carga vino de un Excel, de un
   robot o de una API. Se puede arrancar ya y mejorar la integración después sin tocar el resto.
 - **Reglas en configuración, no en el código:** cuando cambia un convenio se edita un archivo.
@@ -128,17 +131,17 @@ cuando el piloto haya demostrado el valor. Si se usa el robot:
 - si el portal solo acepta conexiones desde la red de la farmacia, el robot corre en una PC de la
   farmacia (infraestructura híbrida, sección 6).
 
-Si el sistema solo exporta PDF, la misma IA que lee las recetas puede leer ese PDF y convertirlo en datos.
+Si el sistema solo exporta PDF, se puede leer su texto igual que el de las recetas electrónicas.
 
 ## 6. Infraestructura: ¿en la farmacia o en la nube?
 
 | | En la farmacia (servidor local) | Nube administrada por nosotros | Híbrida |
 |---|---|---|---|
 | Inversión inicial | PC o servidor, UPS, backup | Ninguna | Ninguna (usa una PC que ya existe) |
-| Costo mensual | Luz y mantenimiento | ~US$ 20-40 en el piloto, más la IA | Igual que la nube |
+| Costo mensual | Luz y mantenimiento | ~US$ 20-40 en el piloto | Igual que la nube |
 | Actualizaciones y backups | La farmacia, o nosotros por acceso remoto | Nosotros, centralizado | Nosotros |
 | Usar el celular fuera de la farmacia | Hace falta una VPN | Directo, con usuario y clave | Directo |
-| Si se corta internet en la farmacia | La app sigue andando, pero la lectura con IA no (necesita internet igual) | No se pueden subir fotos hasta que vuelva | Igual que la nube |
+| Si se corta internet en la farmacia | La app sigue andando | No se pueden subir fotos hasta que vuelva | Igual que la nube |
 | Datos de salud fuera de la farmacia | No | Sí (sección 8) | Sí |
 | Sumar otras farmacias | Una instalación por farmacia | El mismo sistema para todas | El mismo sistema + un agente por farmacia |
 | Robot en portales que filtran por IP | Funciona | Puede no funcionar | El agente local corre el robot |
@@ -147,7 +150,8 @@ Si el sistema solo exporta PDF, la misma IA que lee las recetas puede leer ese P
 
 - La farmacia no mantiene servidores ni hace backups, y el backoffice puede usar el celular desde
   cualquier lugar.
-- La lectura con IA necesita internet de todas formas: un servidor local no saca esa dependencia.
+- La lectura sin IA corre en el mismo servidor y usa poco procesador: un servidor chico alcanza para
+  varias farmacias.
 - Si el producto funciona, el mismo sistema sirve para otras farmacias como servicio mensual.
 
 En dos etapas:
@@ -159,27 +163,26 @@ En dos etapas:
    Argentina; las más cercanas suelen ser San Pablo o Santiago de Chile.
 2. **Varias farmacias:** servicios administrados (por ejemplo Cloud Run + Cloud SQL + Cloud Storage en
    Google Cloud, o el equivalente en AWS), PostgreSQL, datos separados por farmacia, usuarios
-   individuales y monitoreo. Del orden de US$ 60-150 por mes de base, más la IA según el volumen.
+   individuales y monitoreo. Del orden de US$ 60-150 por mes de base para todas las farmacias.
 
-## 7. Costo de la IA
+## 7. Costo de la lectura
 
-Estimación cada 1.000 recetas, con foto de frente y dorso:
+**Por defecto no hay costo por receta:** la lectura corre en nuestro servidor con OCR y herramientas de
+código abierto. La IA (Claude) se usa solo a pedido, para lo que la lectura sin IA no puede confirmar.
+Estimación para una farmacia con 3.000 recetas por mes:
 
-| Modelo | Costo aproximado cada 1.000 recetas | Comentario |
-|---|---|---|
-| Claude Opus 5.5 (el configurado por defecto) | US$ 50-100 | El más preciso de los tres; recomendado para el piloto |
-| Claude Sonnet 5.5 | US$ 25-50 | Comparar con el set de prueba |
-| Claude Haiku 5.5 | US$ 2-5 | Probar si alcanza, sobre todo para recetas impresas o electrónicas |
+| Estrategia | Costo variable por mes |
+|---|---|
+| Solo lectura sin IA (por defecto) | US$ 0 |
+| Sin IA + IA a pedido para el 20% más difícil, con Claude Haiku 5.5 | ~US$ 1-3 |
+| Sin IA + IA a pedido para el 20% más difícil, con Claude Opus 5.5 | ~US$ 30-60 |
+| IA para todas, con Claude Opus 5.5 | ~US$ 150-300 |
 
-Supuestos: hasta ~4.800 tokens por imagen a la máxima resolución útil, ~1.500 tokens de instrucciones y
-1.500-2.500 tokens de respuesta (incluido el razonamiento del modelo). Precios por millón de tokens a
-noviembre de 2026 (entrada / salida): Opus 5.5 US$ 4 / 20; Sonnet 5.5 US$ 2 / 10; Haiku 5.5
-US$ 0,10 / 0,50. Si la lectura no es urgente se puede procesar en lote a mitad de precio.
-
-El consumo real queda guardado en cada receta, así que en el piloto vamos a tener el número exacto. Para
-ponerlo en perspectiva: alcanza con evitar unos pocos débitos por mes para pagar la lectura de miles de
-recetas. El monto de débitos de los últimos meses (relevamiento) da la cuenta real. El modelo se cambia
-con una variable (`GESTIFARMA_MODELO`).
+Supuestos de la IA: frente y dorso por receta, hasta ~4.800 tokens por imagen, ~1.500 de instrucciones y
+1.500-2.500 de respuesta. Precios por millón de tokens a noviembre de 2026 (entrada / salida): Opus 5.5
+US$ 4 / 20, Sonnet 5.5 US$ 2 / 10, Haiku 5.5 US$ 0,10 / 0,50. El consumo real queda guardado en cada
+receta leída con IA. Detalle y alternativas (incluido un modelo propio para la letra manuscrita) en
+[lectura-sin-tokens.md](lectura-sin-tokens.md).
 
 ## 8. Seguridad y datos personales
 
@@ -187,7 +190,8 @@ con una variable (`GESTIFARMA_MODELO`).
   que aplicar medidas de seguridad acordes, registrar la base ante la autoridad de control (AAIP) y
   definir quién accede y por cuánto tiempo se guardan. *A validar con asesoría legal antes de pasar a
   producción.*
-- **Datos fuera del país.** La nube y la API de IA procesan los datos fuera de Argentina, y la ley pone
+- **Datos fuera del país.** La nube (y la API de IA, si se usa a pedido) procesan los datos fuera de
+  Argentina, y la ley pone
   condiciones a esas transferencias (por ejemplo, cláusulas contractuales). Revisarlo con el asesor
   legal junto con las condiciones de los proveedores. Según sus condiciones comerciales, Anthropic no
   usa los datos enviados por la API para entrenar modelos; igual hay que revisar los plazos de retención
@@ -200,12 +204,13 @@ con una variable (`GESTIFARMA_MODELO`).
 
 ## 9. Medir la precisión antes de confiar
 
-La lectura con IA no es perfecta, sobre todo con letra manuscrita. Antes de confiar en ella:
+Ninguna lectura automática es perfecta, sobre todo con letra manuscrita. Antes de confiar en ella:
 
 1. Armar un set de 50-100 recetas reales (fotos) con los datos correctos cargados por el backoffice en
    una planilla.
 2. Medir campo por campo cuánto acierta: afiliado, matrícula, fechas, medicamentos y cantidades.
-3. Ajustar las instrucciones y probar otros modelos con el mismo set; comparar costo y precisión.
+3. Medir qué porcentaje confirma la lectura sin IA y, para el resto, comparar el costo y la precisión
+   de la IA a pedido.
 4. Decidir qué campos se aceptan sin mirar y cuáles se revisan siempre.
 
 Mientras tanto el sistema ya ayuda: los campos dudosos y todas las diferencias se muestran con la imagen
@@ -219,9 +224,10 @@ al lado, para confirmar en segundos.
 |---|---|---|---|
 | 0. Relevamiento | 1-2 semanas | [Preguntas](relevamiento.md); recetas de muestra, reportes del sistema y el detalle de débitos de los últimos meses. | Sabemos cómo conectarnos y qué reglas aplicar. |
 | 1. Piloto | 3-4 semanas | Este MVP en la nube para una farmacia: fotos + reporte exportado + conciliación. Formatos y reglas reales. Medición de precisión. | Primeros débitos evitados y números para decidir. |
-| 2. Automatización | 4-6 semanas | Conector automático (API o robot); lectura directa de códigos QR y de barras (recetas electrónicas y troqueles); base de medicamentos para comparar nombres comerciales con la droga recetada; usuarios individuales; procesamiento en lote. | El backoffice solo saca fotos y revisa excepciones. |
+| 2. Automatización | 4-6 semanas | Conector automático (API o robot); base de medicamentos para comparar nombres comerciales con la droga recetada; usuarios individuales; procesamiento en cola. | El backoffice solo saca fotos y revisa excepciones. |
 | 3. Después de la liquidación | 3-4 semanas | Cruzar las liquidaciones y los débitos con lo presentado: qué se debitó, por qué y qué se puede reclamar o refacturar. Tablero de débitos por causa. | Se recupera plata y se ataca la causa de los débitos. |
 | 4. Varias farmacias | A definir | Datos separados por farmacia, alta de clientes, facturación, panel por farmacia. | Producto para ofrecer a otras farmacias. |
+| 5. Modelo propio (si hace falta) | A definir | Si quedan muchas manuscritas sin confirmar: modelo abierto en servidor propio, entrenado con las recetas ya revisadas. | Lectura de manuscritas sin costo por receta. |
 
 ## 11. Decisiones a tomar
 
@@ -229,5 +235,5 @@ al lado, para confirmar en segundos.
 2. **Qué sistema cruzar primero:** colegio, gerenciadora o sistema de gestión de la farmacia (sale del
    relevamiento).
 3. **Quién saca las fotos y cuándo:** en el mostrador al dispensar o en el backoffice al cierre.
-4. **Modelo de IA y presupuesto mensual para el piloto** (recomendado: Opus 5.5, el configurado).
+4. **IA a pedido:** si se habilita (y con qué modelo) para las recetas que la lectura sin IA no confirma.
 5. **Revisión legal** de datos de salud y transferencia internacional.

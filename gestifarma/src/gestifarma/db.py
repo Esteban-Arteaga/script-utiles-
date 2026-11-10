@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.exc import SAWarning
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -34,6 +34,15 @@ def crear_sesiones(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
+# Columnas agregadas después de la primera versión: (tabla, columna, tipo SQL).
+_COLUMNAS_NUEVAS = [("conciliaciones", "confirmados", "JSON")]
+
+
 def inicializar(engine: Engine) -> None:
-    """Crea las tablas que falten. Cuando el esquema se estabilice, pasar a migraciones (Alembic)."""
+    """Crea las tablas y columnas que falten. Cuando el esquema se estabilice, pasar a migraciones (Alembic)."""
     Base.metadata.create_all(engine)
+    inspector = inspect(engine)
+    with engine.begin() as conexion:
+        for tabla, columna, tipo in _COLUMNAS_NUEVAS:
+            if columna not in {c["name"] for c in inspector.get_columns(tabla)}:
+                conexion.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}"))

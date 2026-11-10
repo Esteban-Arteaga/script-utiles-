@@ -27,6 +27,7 @@ from ..conectores.archivo import cargar_fuentes
 from ..config import Config
 from ..db import crear_engine, crear_sesiones, inicializar
 from ..extraccion import Extractor, ExtractorClaude
+from ..extraccion.local import LectorLocal
 from ..modelos import ArchivoReceta, Conciliacion, EstadoReceta, Importacion, Receta, RegistroSistema
 from ..normalizacion import formatear_fecha, parsear_fecha
 
@@ -52,6 +53,7 @@ ETIQUETAS_CRITERIO = {
     Criterio.AUTORIZACION: "número de autorización",
     Criterio.NRO_RECETA: "número de receta",
     Criterio.AFILIADO_FECHA: "afiliado y fecha (la receta no tiene números para cruzar)",
+    Criterio.EN_IMAGEN: "sus números en la imagen (lectura sin IA)",
 }
 CAMPOS_FORMULARIO = (
     servicios.CAMPOS_TEXTO_RECETA
@@ -84,7 +86,11 @@ def redirigir(url: str, **parametros: str | None) -> RedirectResponse:
     return RedirectResponse(f"{url}?{consulta}" if consulta else url, status_code=303)
 
 
-def crear_app(config: Config | None = None, extractor: Extractor | None = None) -> FastAPI:
+def crear_app(
+    config: Config | None = None, extractor: Extractor | None = None, extractor_ia: Extractor | None = None
+) -> FastAPI:
+    """`extractor`: lectura automática al subir cada receta (por defecto, sin IA).
+    `extractor_ia`: lectura con IA a pedido, receta por receta (si hay clave de la API)."""
     config = config or Config.desde_entorno()
     config.data_dir.mkdir(parents=True, exist_ok=True)
     engine = crear_engine(config.database_url)
@@ -93,8 +99,13 @@ def crear_app(config: Config | None = None, extractor: Extractor | None = None) 
     almacen = AlmacenLocal(config.archivos_dir)
     reglas = Reglas.desde_toml(config.reglas_path) if config.reglas_path.exists() else Reglas()
     fuentes = cargar_fuentes(config.fuentes_dir)
-    if extractor is None and config.lectura_ia:
-        extractor = ExtractorClaude(config.modelo, config.esfuerzo)
+    if extractor_ia is None and config.lectura_ia:
+        extractor_ia = ExtractorClaude(config.modelo, config.esfuerzo)
+    if extractor is None:
+        if config.lector == "local":
+            extractor = LectorLocal(config.ocr)
+        elif config.lector == "claude":
+            extractor = extractor_ia
     if not config.auth_activa:
         log.warning("GESTIFARMA_USUARIO / GESTIFARMA_CLAVE sin definir: la app queda abierta (solo para pruebas).")
 
@@ -107,7 +118,9 @@ def crear_app(config: Config | None = None, extractor: Extractor | None = None) 
         etiquetas_severidad=ETIQUETAS_SEVERIDAD,
         etiquetas_criterio=ETIQUETAS_CRITERIO,
         situacion=situacion,
-        lectura_ia=extractor is not None,
+        lectura_automatica=extractor is not None,
+        lectura_sin_ia=isinstance(extractor, LectorLocal),
+        ia_a_pedido=extractor_ia is not None,
     )
 
     def render(request: Request, plantilla: str, **contexto) -> HTMLResponse:
@@ -237,10 +250,11 @@ def crear_app(config: Config | None = None, extractor: Extractor | None = None) 
         return redirigir(f"/recetas/{receta_id}", msg="Datos guardados y conciliación actualizada.")
 
     @rutas.post("/recetas/{receta_id}/leer")
-    def releer(background: BackgroundTasks, receta_id: int):
-        if extractor is None:
+    def releer(background: BackgroundTasks, receta_id: int, con: str = Form("auto")):
+        lector = extractor_ia if con == "ia" else extractor
+        if lector is None:
             return redirigir(
-                f"/recetas/{receta_id}", error="La lectura automática no está configurada (falta ANTHROPIC_API_KEY)."
+                f"/recetas/{receta_id}", error="Esa lectura no está configurada (para la IA falta ANTHROPIC_API_KEY)."
             )
         with sesiones() as sesion:
             receta = sesion.get(Receta, receta_id)
@@ -248,7 +262,7 @@ def crear_app(config: Config | None = None, extractor: Extractor | None = None) 
                 raise HTTPException(404, "La receta no existe")
             receta.estado = EstadoReceta.PROCESANDO
             sesion.commit()
-        background.add_task(servicios.leer_receta, receta_id, sesiones, extractor, almacen)
+        background.add_task(servicios.leer_receta, receta_id, sesiones, lector, almacen)
         return redirigir(f"/recetas/{receta_id}")
 
     @rutas.post("/recetas/{receta_id}/eliminar")

@@ -13,6 +13,10 @@ se detecta termina en un débito, así que la prioridad es la exactitud: es mejo
 que devolver una lectura inventada.
 
 Cómo leer:
+- El ticket de validación pegado o impreso en el dorso lo imprime el sistema con lo que se cargó, que es \
+justamente lo que se quiere controlar. Para los datos de la receta (afiliado, médico, fechas de prescripción, \
+medicamentos y cantidades) usá lo que escribió el médico en el frente; del ticket tomá solo el número de \
+autorización, la fecha de dispensa y los importes.
 - Transcribí lo que ves; no completes ni corrijas datos con lo que "debería" decir. Si un dato no está o \
 no se puede leer, devolvé null y agregá el campo a campos_dudosos.
 - Si leíste un dato pero con dudas (letra poco clara, número tapado por un sello, foto borrosa), devolvé \

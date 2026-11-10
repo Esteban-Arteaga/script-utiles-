@@ -4,25 +4,28 @@ Conciliación automática entre **las recetas** y **lo que la farmacia cargó** 
 sociales, gerenciadoras y colegio de farmacéuticos, para encontrar los errores **antes de presentar** y
 evitar débitos.
 
-1. **Foto de la receta** desde el celular o el escáner. La IA (Claude) lee los datos y marca lo que leyó con dudas.
+1. **Foto de la receta** desde el celular o el escáner. Se lee en el propio servidor, **sin IA y sin costo por
+   receta** (texto de PDF, códigos de barras y OCR). La IA (Claude) queda como opción a pedido.
 2. **Reporte de lo cargado** en el sistema (CSV o Excel; más adelante, automático).
 3. **Cruce automático:** bandeja con lo que está OK, lo que hay que revisar y lo que hay que corregir.
 
 ![Conciliación](docs/img/conciliacion.jpg)
 
 La propuesta completa (día a día, integración con los sistemas, infraestructura, costos y hoja de ruta)
-está en [docs/propuesta.md](docs/propuesta.md).
+está en [docs/propuesta.md](docs/propuesta.md), y cómo se lee sin pagar por receta, en
+[docs/lectura-sin-tokens.md](docs/lectura-sin-tokens.md).
 
 ## Estado
 
-MVP para el piloto. Funciona: carga de fotos y PDF, lectura con IA, revisión manual, importación de
+MVP para el piloto. Funciona: carga de fotos y PDF, lectura sin IA (OCR, códigos de barras y QR, texto
+de PDF) con verificación contra lo cargado, lectura con IA a pedido, revisión manual, importación de
 reportes CSV/Excel, conciliación con reglas por obra social y planilla de diferencias. Falta (ver la
-hoja de ruta): conector automático real, usuarios individuales, lectura directa de códigos QR y de
-barras, y la etapa posterior a la liquidación.
+hoja de ruta): conector automático real, usuarios individuales y la etapa posterior a la liquidación.
 
 ## Probarlo
 
-Requiere Python 3.11 o superior.
+Requiere Python 3.11 o superior y, para la lectura sin IA, Tesseract con español
+(`apt-get install tesseract-ocr tesseract-ocr-spa` o `brew install tesseract tesseract-lang`; Docker ya lo trae).
 
 ### Demo en la terminal (sin IA ni configuración)
 
@@ -40,17 +43,17 @@ sin cargar y carga sin receta.
 ### La app web
 
 ```bash
-cp .env.example .env        # completar usuario, clave y la clave de la API de Claude
+cp .env.example .env        # completar usuario y clave (la clave de la API de Claude es opcional)
 set -a && source .env && set +a
 gestifarma servidor         # http://127.0.0.1:8000
 ```
 
-- Sin `ANTHROPIC_API_KEY` la app funciona igual, pero los datos de cada receta se cargan a mano.
+- Las recetas se leen sin IA. Con `ANTHROPIC_API_KEY` aparece además el botón "Leer con IA" en cada receta.
 - Para probar desde el celular en la misma red: `gestifarma servidor --host 0.0.0.0` y entrar a
   `http://IP-DE-LA-PC:8000`. Fuera de una red de pruebas, siempre detrás de HTTPS.
-- Para probar la lectura con IA: subir `ejemplos/receta_sintetica.jpg` (o `gestifarma leer
+- Para probar la lectura: subir `ejemplos/receta_sintetica.jpg` (o `gestifarma leer
   ejemplos/receta_sintetica.jpg`), importar `ejemplos/reporte_colegio_ejemplo.csv` con el formato
-  `colegio-ejemplo` y conciliar.
+  `colegio-ejemplo` y conciliar: la receta queda OK con sus datos confirmados en la imagen.
 
 ### Con Docker
 
@@ -69,7 +72,9 @@ Variables de entorno (ver [`.env.example`](.env.example)):
 | Variable | Para qué |
 |---|---|
 | `GESTIFARMA_USUARIO`, `GESTIFARMA_CLAVE` | Acceso a la app. Sin ellas la app queda abierta: solo para pruebas locales. |
-| `ANTHROPIC_API_KEY` | Activa la lectura de recetas con IA. |
+| `GESTIFARMA_LECTOR` | `local` (por defecto: sin IA ni costo por receta), `claude` (todo con IA) o `manual`. |
+| `GESTIFARMA_OCR` | `tesseract` (por defecto) o `rapidocr` (`pip install -e ".[rapidocr]"`). |
+| `ANTHROPIC_API_KEY` | Opcional: habilita la lectura con IA a pedido (o para todo, con `GESTIFARMA_LECTOR=claude`). |
 | `GESTIFARMA_MODELO` | Modelo de Claude (por defecto `claude-opus-5-5`). |
 | `GESTIFARMA_ESFUERZO` | `low`, `medium` (por defecto) o `high`: cuánto razona el modelo. |
 | `GESTIFARMA_DATA_DIR` | Dónde se guardan la base y las fotos (por defecto `./datos`). |
@@ -92,7 +97,7 @@ Archivos de configuración:
 |---|---|
 | `gestifarma demo` | Concilia los datos de ejemplo. |
 | `gestifarma servidor [--host] [--port]` | Levanta la app web. |
-| `gestifarma leer FOTO [FOTO ...]` | Lee una receta (frente, dorso o PDF) con IA y muestra el JSON. |
+| `gestifarma leer FOTO [FOTO ...] [--ia]` | Lee una receta (frente, dorso o PDF) y muestra el JSON: sin IA, o con IA usando `--ia`. |
 | `gestifarma importar ARCHIVO --fuente NOMBRE` | Importa un reporte de lo cargado. |
 | `gestifarma traer --fuente NOMBRE --desde AAAA-MM-DD --hasta AAAA-MM-DD` | Descarga el reporte del portal con el robot y lo importa (requiere `pip install -e ".[rpa]"` y `playwright install chromium`). |
 | `gestifarma conciliar [--desde] [--hasta] [--obra-social]` | Concilia e imprime el resultado. |
@@ -104,12 +109,12 @@ gestifarma/
 ├── config/
 │   ├── reglas.toml              reglas de conciliación por obra social
 │   └── fuentes/                 formatos de reportes (y robot opcional)
-├── docs/                        propuesta, relevamiento y controles
+├── docs/                        propuesta, lectura sin IA, relevamiento y controles
 ├── ejemplos/                    recetas, reporte e imagen de ejemplo
 ├── src/gestifarma/
-│   ├── extraccion/              lectura de recetas con Claude
+│   ├── extraccion/              lectura de recetas: sin IA (OCR, códigos, PDF) y con Claude
 │   ├── conectores/              reporte exportado (CSV/Excel) y robot (Playwright)
-│   ├── conciliacion/            motor de cruce y reglas
+│   ├── conciliacion/            motor de cruce, verificación de lo leído sin IA y reglas
 │   ├── web/                     app web (FastAPI + plantillas)
 │   ├── servicios.py             casos de uso (los usan la web y la CLI)
 │   ├── modelos.py               tablas de la base de datos
@@ -126,4 +131,5 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Los tests no llaman a la API de Claude: usan un cliente simulado.
+Los tests no llaman a la API de Claude: usan un cliente simulado. Los de la lectura sin IA se saltean si
+no está instalado Tesseract.

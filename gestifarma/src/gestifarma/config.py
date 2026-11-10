@@ -25,6 +25,8 @@ class Config:
     lectura_ia: bool = False
     modelo: str = MODELO_POR_DEFECTO
     esfuerzo: str = "medium"
+    lector: str = "local"  # local (sin IA, sin costo por receta) | claude | manual
+    ocr: str = "tesseract"  # tesseract | rapidocr
 
     @property
     def archivos_dir(self) -> Path:
@@ -56,4 +58,6 @@ class Config:
             lectura_ia=hay_credenciales_ia if lectura_ia is None else lectura_ia,
             modelo=os.environ.get("GESTIFARMA_MODELO", MODELO_POR_DEFECTO),
             esfuerzo=os.environ.get("GESTIFARMA_ESFUERZO", "medium"),
+            lector=os.environ.get("GESTIFARMA_LECTOR", "local"),
+            ocr=os.environ.get("GESTIFARMA_OCR", "tesseract"),
         )

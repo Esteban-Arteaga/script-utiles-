@@ -48,3 +48,29 @@ def nuevo_registro(items: list[dict] | None = None, **campos) -> RegistroSistema
         items = [{"descripcion": "ENALAPRIL 10 MG COMP X 30", "monodroga": "ENALAPRIL", "cantidad": 1}]
     registro.items = [ItemRegistro(**item) for item in items]
     return registro
+
+
+def pdf_con_texto(lineas: list[str]) -> bytes:
+    """PDF mínimo de una página con texto (como una receta electrónica), sin librerías extra."""
+
+    def escapar(texto: str) -> str:
+        return texto.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    contenido = "BT /F1 14 Tf 50 800 Td " + " ".join(f"({escapar(linea)}) Tj 0 -22 Td" for linea in lineas) + " ET"
+    objetos = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R "
+        "/Resources << /Font << /F1 5 0 R >> >> >>",
+        f"<< /Length {len(contenido)} >>\nstream\n{contenido}\nendstream",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    salida, posiciones = "%PDF-1.4\n", []
+    for numero, objeto in enumerate(objetos, start=1):
+        posiciones.append(len(salida))
+        salida += f"{numero} 0 obj\n{objeto}\nendobj\n"
+    inicio_xref = len(salida)
+    salida += f"xref\n0 {len(objetos) + 1}\n0000000000 65535 f \n"
+    salida += "".join(f"{posicion:010d} 00000 n \n" for posicion in posiciones)
+    salida += f"trailer\n<< /Size {len(objetos) + 1} /Root 1 0 R >>\nstartxref\n{inicio_xref}\n%%EOF\n"
+    return salida.encode("latin-1")

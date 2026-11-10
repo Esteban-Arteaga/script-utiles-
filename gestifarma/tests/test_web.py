@@ -1,5 +1,6 @@
 import base64
 import json
+import shutil
 from io import BytesIO
 
 import pytest
@@ -134,8 +135,8 @@ def test_revision_manual_actualiza_datos_y_conciliacion(cliente):
     assert "No se guardó" in cliente.post("/recetas/1", data=formulario).text
 
 
-def test_sin_ia_la_receta_queda_para_cargar_a_mano(tmp_path):
-    cliente = TestClient(crear_app(configuracion(tmp_path)), headers=CREDENCIALES)
+def test_en_modo_manual_la_receta_queda_para_cargar_a_mano(tmp_path):
+    cliente = TestClient(crear_app(configuracion(tmp_path, lector="manual")), headers=CREDENCIALES)
     respuesta = cliente.post(
         "/recetas", files=[("archivos", ("frente.jpg", jpg(), "image/jpeg"))], data={"modo": "una"}
     )
@@ -153,3 +154,33 @@ def test_eliminar_receta_borra_los_archivos(cliente, tmp_path):
     cliente.post("/recetas/1/eliminar")
     assert cliente.get("/recetas/1").status_code == 404
     assert not list((tmp_path / "archivos").rglob("*.jpg"))
+
+
+@pytest.mark.skipif(shutil.which("tesseract") is None, reason="falta Tesseract")
+def test_lectura_sin_ia_de_punta_a_punta(tmp_path):
+    """Por defecto se lee sin IA: la receta de ejemplo se cruza con su carga y se confirman sus datos."""
+    cliente = TestClient(crear_app(configuracion(tmp_path)), headers=CREDENCIALES)
+    imagen = (RAIZ / "ejemplos" / "receta_sintetica.jpg").read_bytes()
+    pagina = cliente.post("/recetas", files=[("archivos", ("frente.jpg", imagen, "image/jpeg"))], data={"modo": "una"})
+    assert "Leída sin IA" in pagina.text and "Texto leído sin IA" in pagina.text
+    assert "Leer con IA" not in pagina.text  # sin clave de la API no se ofrece
+
+    with REPORTE.open("rb") as archivo:
+        cliente.post(
+            "/importaciones", data={"fuente": "colegio-ejemplo"}, files={"archivo": ("r.csv", archivo, "text/csv")}
+        )
+    cliente.post("/conciliacion", data={})
+    pagina = cliente.get("/recetas/1").text
+    assert 'badge badge-ok">OK' in pagina
+    assert "Confirmado en la imagen: obra social · número de afiliado" in pagina
+    assert 'value="123456789012/00"' in pagina
+
+
+def test_leer_con_ia_a_pedido(tmp_path):
+    ia = ExtractorFalso()
+    app = crear_app(configuracion(tmp_path, lector="manual"), extractor_ia=ia)
+    cliente = TestClient(app, headers=CREDENCIALES)
+    pagina = cliente.post("/recetas", files=[("archivos", ("frente.jpg", jpg(), "image/jpeg"))], data={"modo": "una"})
+    assert "Leer con IA" in pagina.text and ia.llamadas == 0
+    pagina = cliente.post("/recetas/1/leer", data={"con": "ia"})
+    assert ia.llamadas == 1 and "Leída con IA" in pagina.text

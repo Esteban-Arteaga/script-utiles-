@@ -3,10 +3,14 @@
 {% block contenido %}
 <h1>Nueva receta</h1>
 
-{% if not lectura_ia %}
+{% if lectura_sin_ia %}
+<p class="aviso aviso-info">
+  Lectura sin IA: corre en el servidor y no tiene costo por receta. Lee muy bien recetas impresas,
+  electrónicas (PDF), tickets y códigos de barras; la letra manuscrita se revisa a mano{{ ' o con IA a pedido' if ia_a_pedido else '' }}.
+</p>
+{% elif not lectura_automatica %}
 <p class="aviso aviso-alerta">
-  La lectura automática con IA está apagada (falta configurar <code>ANTHROPIC_API_KEY</code>).
-  Las recetas se guardan igual y los datos se completan a mano.
+  La lectura automática está apagada: las recetas se guardan y los datos se completan a mano.
 </p>
 {% endif %}
 

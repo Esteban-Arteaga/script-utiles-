@@ -10,6 +10,11 @@ exigencias por obra social están en [`config/reglas.toml`](../config/reglas.tom
 3. Si la receta no tiene números: **mismo afiliado** y además misma fecha de prescripción, dispensa
    cercana (hasta 3 días) o el mismo medicamento.
 
+Las recetas **leídas sin IA** (por defecto) se encuentran por los números de la carga que aparecen en
+la imagen, y cada dato se confirma buscándolo en el texto leído: ver
+[lectura-sin-tokens.md](lectura-sin-tokens.md). Cuando una persona revisa y guarda la receta, pasa a
+compararse campo por campo como se describe abajo.
+
 ## Resultados
 
 | Resultado | Significa |
