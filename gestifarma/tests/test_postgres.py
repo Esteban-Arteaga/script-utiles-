@@ -49,7 +49,8 @@ def test_conciliacion_de_ejemplo_en_postgres(engine):
         for datos in json.loads((RAIZ / "ejemplos" / "recetas_ejemplo.json").read_text(encoding="utf-8")):
             sesion.add(servicios.receta_desde_extraccion(ExtraccionReceta.model_validate(datos)))
         sesion.commit()
-        assert len(servicios.importar(sesion, REPORTE, REPORTE.name, fuente).registros) == 7
+        for _ in range(2):  # reimportar el mismo reporte reemplaza las cargas: el resultado no cambia
+            assert len(servicios.importar(sesion, REPORTE, REPORTE.name, fuente).registros) == 7
         resumen = servicios.conciliar_y_guardar(sesion, Reglas.desde_toml(RAIZ / "config" / "reglas.toml"))
     assert {resultado: n for resultado, n in resumen.por_resultado.items() if n} == {
         Resultado.CON_DIFERENCIAS: 4,

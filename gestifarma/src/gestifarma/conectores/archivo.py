@@ -6,12 +6,16 @@ config/fuentes/<nombre>.toml que dice qué columna tiene cada dato.
 
 Se espera una fila por producto dispensado. Las filas con el mismo número de autorización (o de
 receta) se agrupan en una sola carga; los datos de cabecera se toman de la primera fila del grupo.
+Las filas sin ninguno de los dos números se agrupan por afiliado y fecha de dispensa, y la carga se
+reconoce por sus datos (ver clave_por_datos).
 """
 
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
+import json
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -146,6 +150,9 @@ def leer_archivo(ruta: Path, mapeo: MapeoArchivo) -> LecturaArchivo:
         if item is not None:
             registro.items.append(item)
         registro.datos_originales.append({k: texto_o_none(v) for k, v in fila.items() if k})
+    for registro in grupos.values():
+        if registro.clave is None:  # recién ahora la carga tiene todos sus productos
+            registro.clave = clave_por_datos(registro)
     return LecturaArchivo(registros=list(grupos.values()), filas=leidas, errores=errores)
 
 
@@ -155,6 +162,25 @@ def _clave(cabecera: dict) -> str | None:
     if normalizar_id(cabecera.get("nro_receta")):
         return "REC:" + normalizar_id(cabecera["nro_receta"])
     return None
+
+
+def clave_por_datos(registro: RegistroSistema) -> str:
+    """Clave de respaldo de una carga sin número de autorización ni de receta: un hash de la fuente, el
+    afiliado, las fechas y los productos con sus cantidades, normalizados (no cambia con mayúsculas, acentos,
+    signos ni con el orden de los productos). Al volver a importar el mismo reporte, la carga se reemplaza en vez
+    de duplicarse. Si en el sistema se corrige uno de esos datos, es otra clave y la carga anterior queda.
+
+    Las claves quedan guardadas: si se cambia qué datos entran acá, las cargas ya importadas dejan de
+    reconocerse y la próxima importación las duplica."""
+    productos = sorted((normalizar_texto(item.descripcion), str(item.cantidad)) for item in registro.items)
+    datos = [
+        registro.fuente,
+        normalizar_id(registro.nro_afiliado),
+        registro.fecha_prescripcion,
+        registro.fecha_dispensa,
+        productos,
+    ]
+    return "DAT:" + hashlib.sha256(json.dumps(datos, default=str).encode()).hexdigest()
 
 
 def _interpretar(valores: dict, mapeo: MapeoArchivo) -> tuple[dict, ItemRegistro | None]:

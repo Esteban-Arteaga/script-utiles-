@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, selectinload, sessionmaker
 from .almacenamiento import AlmacenLocal
 from .conciliacion.motor import conciliar, fecha_referencia
 from .conciliacion.reglas import Reglas
-from .conectores.archivo import MapeoArchivo, leer_archivo
+from .conectores.archivo import MapeoArchivo, clave_por_datos, leer_archivo
 from .extraccion import ArchivoNoSoportado, ExtraccionReceta, Extractor, ResultadoExtraccion, tipo_de_archivo
 from .modelos import (
     ArchivoReceta,
@@ -202,12 +202,22 @@ def eliminar_receta(sesion: Session, receta: Receta, almacen: AlmacenLocal) -> N
 
 
 def importar(sesion: Session, ruta: Path, nombre_archivo: str, mapeo: MapeoArchivo) -> Importacion:
-    """Importa un reporte exportado del sistema. Si una carga ya existía (misma fuente y número de
-    autorización o de receta), la reemplaza: así se puede volver a importar después de corregir."""
+    """Importa un reporte exportado del sistema. Si una carga ya existía (misma fuente y mismo número de
+    autorización o de receta o, si no tiene ninguno, mismos datos), la reemplaza: así se puede volver a
+    importar después de corregir."""
     lectura = leer_archivo(ruta, mapeo)
     importacion = Importacion(
         fuente=mapeo.nombre, nombre_archivo=nombre_archivo[:255], filas_leidas=lectura.filas, errores=lectura.errores
     )
+    # Las cargas sin números importadas con versiones anteriores no tienen clave: se les calcula ahora para que
+    # se reemplacen como las demás (y, si se habían duplicado, al reimportarlas queda una sola).
+    sin_clave = sesion.scalars(
+        select(RegistroSistema)
+        .where(RegistroSistema.fuente == mapeo.nombre, RegistroSistema.clave.is_(None))
+        .options(selectinload(RegistroSistema.items))
+    ).all()
+    for registro in sin_clave:
+        registro.clave = clave_por_datos(registro)
     claves = [r.clave for r in lectura.registros if r.clave]
     if claves:
         anteriores = sesion.scalars(

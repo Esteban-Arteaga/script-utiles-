@@ -132,7 +132,8 @@ class RegistroSistema(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     importacion_id: Mapped[int | None] = mapped_column(ForeignKey("importaciones.id", ondelete="CASCADE"), index=True)
     fuente: Mapped[str] = mapped_column(String(80), index=True)
-    # Clave normalizada (autorización o nro de receta): al reimportar, reemplaza la carga anterior.
+    # Clave normalizada (autorización, nro de receta o, si no tiene ninguno, un hash de sus datos):
+    # al reimportar, reemplaza la carga anterior.
     clave: Mapped[str | None] = mapped_column(String(80), index=True)
 
     nro_receta: Mapped[str | None] = mapped_column(String(60))
