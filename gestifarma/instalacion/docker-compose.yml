@@ -1,0 +1,120 @@
+# Gestifarma instalado en el servidor de la farmacia (o en su propia nube).
+# No se maneja a mano: se usa ./gestifarma.sh (instalar, actualizar, respaldar, restaurar, estado). Ver README.md.
+#
+#   celulares y PC ──HTTPS──▶ proxy (Caddy) ──▶ app (Gestifarma) ──▶ db (PostgreSQL)
+#                                                    │                    │
+#                                                 fotos ◀── respaldo ──▶ disco externo + copia fuera del local
+name: gestifarma
+
+services:
+  # Entrada HTTPS con un certificado válido que se renueva solo.
+  proxy:
+    build: ./caddy
+    image: gestifarma-proxy:2.10
+    restart: unless-stopped
+    ports:
+      - "${GESTIFARMA_IP:-0.0.0.0}:80:80"
+      - "${GESTIFARMA_IP:-0.0.0.0}:443:443"
+    environment:
+      GESTIFARMA_DOMINIO: ${GESTIFARMA_DOMINIO:?Falta GESTIFARMA_DOMINIO en .env}
+      GESTIFARMA_HTTPS: ${GESTIFARMA_HTTPS:-red-local}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/modos:/etc/caddy/modos:ro
+      - certificados:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    networks: [frente]
+
+  # La aplicación: web, lectura de recetas sin IA y conciliación.
+  app:
+    image: ${GESTIFARMA_IMAGEN:-gestifarma}:${GESTIFARMA_VERSION:-local}
+    build:
+      context: ..
+      args:
+        VERSION: ${GESTIFARMA_VERSION:-local}
+    restart: unless-stopped
+    environment:
+      GESTIFARMA_DATABASE_URL: postgresql+psycopg://gestifarma:${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}@db:5432/gestifarma
+      GESTIFARMA_USUARIO: ${GESTIFARMA_USUARIO:?Falta GESTIFARMA_USUARIO en .env}
+      GESTIFARMA_CLAVE: ${GESTIFARMA_CLAVE:?Falta GESTIFARMA_CLAVE en .env}
+      GESTIFARMA_LECTOR: ${GESTIFARMA_LECTOR:-local}
+      GESTIFARMA_OCR: ${GESTIFARMA_OCR:-tesseract}
+      GESTIFARMA_LECTURA_IA: ${GESTIFARMA_LECTURA_IA:-no}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Solo la alcanza el proxy: confiar en sus encabezados para saber que la conexión original es HTTPS.
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - archivos:/datos
+      - ./config:/app/config:ro
+      - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/salud', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [frente, fondo]
+
+  # Base de datos. No es accesible desde fuera del servidor.
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gestifarma
+      POSTGRES_USER: gestifarma
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+    volumes:
+      - base:/var/lib/postgresql/data
+      - /etc/localtime:/etc/localtime:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gestifarma -d gestifarma"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [fondo]
+
+  # Respaldo cifrado todas las noches (y antes de cada actualización): base + fotos, con restic.
+  respaldo:
+    build: ./respaldo
+    image: gestifarma-respaldo:1
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: gestifarma
+      PGDATABASE: gestifarma
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:?Falta RESTIC_PASSWORD en .env}
+      RESPALDO_HORARIO: "${RESPALDO_HORARIO:-30 23 * * *}"
+      RESPALDO_REMOTO: ${RESPALDO_REMOTO:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      MONITOR_URL: ${MONITOR_URL:-}
+    volumes:
+      - archivos:/datos
+      - trabajo:/trabajo
+      - ${RESPALDO_DISCO:-./respaldo-local}:/respaldo
+      - ./estado:/estado
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [frente, fondo]
+
+networks:
+  frente:
+  fondo:
+    internal: true
+
+volumes:
+  base:
+  archivos:
+  trabajo:
+  certificados:
+  caddy-config:

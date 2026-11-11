@@ -1,0 +1,25 @@
+# Entrada HTTPS de Gestifarma. El modo del certificado se elige con GESTIFARMA_HTTPS (ver la carpeta modos).
+{
+	admin off
+}
+
+{$GESTIFARMA_DOMINIO} {
+	import /etc/caddy/modos/{$GESTIFARMA_HTTPS:red-local}.caddy
+
+	encode zstd gzip
+	request_body {
+		max_size 100MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+	reverse_proxy app:8000
+	log {
+		output stdout
+		format console
+	}
+}

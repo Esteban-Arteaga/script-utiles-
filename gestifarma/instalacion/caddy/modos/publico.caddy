@@ -1,0 +1,2 @@
+# Servidor con IP pública (nube propia de la farmacia): el certificado de Let's Encrypt se valida por HTTP.
+# Requiere que el dominio apunte a la IP pública y que entren conexiones a los puertos 80 y 443.

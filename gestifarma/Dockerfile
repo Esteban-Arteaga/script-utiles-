@@ -1,6 +1,10 @@
 FROM python:3.12-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
+# Versión con la que se construye la imagen (la pasa el kit de instalación); se ve en /salud.
+ARG VERSION=local
+
+ENV GESTIFARMA_VERSION_IMAGEN=$VERSION \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     GESTIFARMA_DATA_DIR=/datos \

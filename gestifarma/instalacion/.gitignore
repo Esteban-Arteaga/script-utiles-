@@ -1,0 +1,5 @@
+# Datos y secretos de cada instalación: nunca al repositorio.
+.env
+config/
+estado/
+respaldo-local/

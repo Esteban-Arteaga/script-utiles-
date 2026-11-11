@@ -11,15 +11,15 @@ from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import selectinload
 from starlette.concurrency import run_in_threadpool
 
-from .. import servicios
+from .. import servicios, version_instalada
 from ..almacenamiento import AlmacenLocal
 from ..conciliacion.motor import Criterio, Resultado, Severidad
 from ..conciliacion.reglas import Reglas
@@ -154,8 +154,16 @@ def crear_app(
         return await call_next(request)
 
     @app.get("/salud", include_in_schema=False)
-    def salud() -> dict:
-        return {"estado": "ok"}
+    def salud() -> Response:
+        # Lo usan Docker, el script de actualización y el monitoreo: sin datos de recetas ni de pacientes.
+        datos = {"estado": "ok", "version": version_instalada(), "base": "ok"}
+        try:
+            with sesiones() as sesion:
+                sesion.execute(text("SELECT 1"))
+        except Exception:  # noqa: BLE001 - cualquier falla de la base deja la app como no saludable
+            log.exception("La base de datos no responde")
+            datos.update(estado="error", base="error")
+        return JSONResponse(datos, status_code=200 if datos["estado"] == "ok" else 503)
 
     rutas = APIRouter(dependencies=[Depends(verificar_acceso)])
 

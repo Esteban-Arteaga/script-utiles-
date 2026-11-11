@@ -1,3 +1,4 @@
+# Para probar Gestifarma en una sola máquina. Para instalarlo en una farmacia, usar instalacion/ (ver README).
 services:
   gestifarma:
     build: .

@@ -13,7 +13,8 @@ evitar débitos.
 
 La propuesta completa (día a día, integración con los sistemas, infraestructura, costos y hoja de ruta)
 está en [docs/propuesta.md](docs/propuesta.md), y cómo se lee sin pagar por receta, en
-[docs/lectura-sin-tokens.md](docs/lectura-sin-tokens.md).
+[docs/lectura-sin-tokens.md](docs/lectura-sin-tokens.md). Para instalarlo en el servidor de una farmacia,
+con sus datos en su propia infraestructura, está el kit de [instalacion/](instalacion/README.md).
 
 ## Estado
 
@@ -98,12 +99,19 @@ gestifarma servidor            # abrir http://127.0.0.1:8000 (Ctrl+C para cortar
 
 ### Con Docker
 
+Para probarlo en una sola máquina:
+
 ```bash
 cp .env.example .env
 docker compose up --build                     # http://localhost:8000
+```
 
-# En un servidor con dominio propio, con HTTPS automático (Caddy):
-docker compose --profile https up -d --build  # requiere GESTIFARMA_DOMINIO en .env
+Para instalarlo en una farmacia (PostgreSQL, HTTPS con certificado válido, respaldos cifrados y
+actualizaciones con vuelta atrás) se usa el kit de [instalacion/](instalacion/README.md):
+
+```bash
+cd instalacion
+./gestifarma.sh instalar
 ```
 
 ## Configuración
@@ -153,6 +161,7 @@ gestifarma/
 │   └── fuentes/                 formatos de reportes (y robot opcional)
 ├── docs/                        propuesta, lectura sin IA, relevamiento y controles
 ├── ejemplos/                    recetas (imágenes y ya leídas) y reporte de ejemplo
+├── instalacion/                 kit para instalar en la farmacia: compose, HTTPS, respaldos, gestifarma.sh
 ├── scripts/                     generador de las recetas de ejemplo
 ├── src/gestifarma/
 │   ├── extraccion/              lectura de recetas: sin IA (OCR, códigos, PDF) y con Claude
@@ -170,9 +179,12 @@ gestifarma/
 ## Desarrollo
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,postgres]"
 pytest
 ```
+
+Para correr también las pruebas sobre PostgreSQL, apuntar `GESTIFARMA_TEST_DATABASE_URL` a una base de
+prueba vacía (por ejemplo `postgresql+psycopg://usuario:clave@localhost:5432/gestifarma_test`).
 
 Los tests no llaman a la API de Claude: usan un cliente simulado. Los de la lectura sin IA se saltean si
 no está instalado Tesseract.

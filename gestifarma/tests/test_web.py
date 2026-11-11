@@ -6,7 +6,10 @@ import pytest
 from fabricas import RAIZ
 from fastapi.testclient import TestClient
 from PIL import Image
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
+from gestifarma import version_instalada
 from gestifarma.config import Config
 from gestifarma.extraccion import ExtraccionReceta, ResultadoExtraccion
 from gestifarma.extraccion.local import ruta_tesseract
@@ -62,7 +65,21 @@ def test_pide_usuario_y_clave(tmp_path):
     assert cliente.get("/recetas").status_code == 401
     otra_clave = {"Authorization": "Basic " + base64.b64encode(b"ana:otra").decode()}
     assert cliente.get("/recetas", headers=otra_clave).status_code == 401
-    assert cliente.get("/salud").json() == {"estado": "ok"}
+    salud = cliente.get("/salud")
+    assert salud.status_code == 200
+    assert salud.json() == {"estado": "ok", "version": version_instalada(), "base": "ok"}
+
+
+def test_salud_avisa_si_la_base_no_responde(tmp_path, monkeypatch):
+    cliente = TestClient(crear_app(configuracion(tmp_path), extractor=ExtractorFalso()))
+
+    def sin_base(*args, **kwargs):
+        raise OperationalError("SELECT 1", {}, Exception("sin conexión"))
+
+    monkeypatch.setattr(Session, "execute", sin_base)
+    respuesta = cliente.get("/salud")
+    assert respuesta.status_code == 503
+    assert respuesta.json()["base"] == "error"
 
 
 def test_flujo_completo_foto_importacion_y_conciliacion(cliente, extractor):

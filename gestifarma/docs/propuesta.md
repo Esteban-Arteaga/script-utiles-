@@ -139,31 +139,33 @@ Si el sistema solo exporta PDF, se puede leer su texto igual que el de las recet
 |---|---|---|---|
 | Inversión inicial | PC o servidor, UPS, backup | Ninguna | Ninguna (usa una PC que ya existe) |
 | Costo mensual | Luz y mantenimiento | ~US$ 20-40 en el piloto | Igual que la nube |
-| Actualizaciones y backups | La farmacia, o nosotros por acceso remoto | Nosotros, centralizado | Nosotros |
+| Actualizaciones y backups | Nosotros, por VPN con permiso; respaldo cifrado automático | Nosotros, centralizado | Nosotros |
 | Usar el celular fuera de la farmacia | Hace falta una VPN | Directo, con usuario y clave | Directo |
 | Si se corta internet en la farmacia | La app sigue andando | No se pueden subir fotos hasta que vuelva | Igual que la nube |
 | Datos de salud fuera de la farmacia | No | Sí (sección 8) | Sí |
 | Sumar otras farmacias | Una instalación por farmacia | El mismo sistema para todas | El mismo sistema + un agente por farmacia |
 | Robot en portales que filtran por IP | Funciona | Puede no funcionar | El agente local corre el robot |
 
-**Recomendación: nube administrada por nosotros**, sumando un agente local solo si el robot lo necesita.
+**Recomendación para una farmacia que no quiere compartir sus datos: servidor en la farmacia**, instalado y
+mantenido por nosotros con un abono de soporte.
 
-- La farmacia no mantiene servidores ni hace backups, y el backoffice puede usar el celular desde
-  cualquier lugar.
-- La lectura sin IA corre en el mismo servidor y usa poco procesador: un servidor chico alcanza para
-  varias farmacias.
-- Si el producto funciona, el mismo sistema sirve para otras farmacias como servicio mensual.
+- Los datos quedan en el local; afuera solo va la copia de respaldo, cifrada con una clave que tiene la
+  farmacia. Nosotros no guardamos copias y entramos solo cuando la farmacia lo habilita.
+- Sigue andando dentro del local aunque se corte internet, y el robot sale desde la IP de la farmacia.
+- La instalación es un kit listo ([instalacion/](../instalacion/README.md)): PostgreSQL, HTTPS con
+  certificado válido sin abrir puertos a internet, respaldo cifrado todas las noches en dos lugares y
+  actualizaciones que vuelven solas atrás si fallan.
+- Si la farmacia tiene varias sucursales o no tiene lugar para un equipo, el mismo kit se instala en una
+  cuenta de nube a su nombre (por ejemplo AWS en San Pablo; los datos quedan fuera del país, a validar con
+  su asesor legal).
 
-En dos etapas:
+La **nube administrada por nosotros** queda para las farmacias que prefieran no tener nada propio, y para
+ofrecer Gestifarma como servicio a varias farmacias:
 
-1. **Piloto (una farmacia):** una máquina virtual chica (2 vCPU, 4 GB de RAM) con Docker Compose: la
-   app, la base SQLite y las fotos en el disco, HTTPS automático con Caddy (ya incluido en
-   `docker-compose.yml`) y un backup diario a un almacenamiento de objetos. Se levanta en cualquier
-   proveedor (Google Cloud, AWS, DigitalOcean, etc.). Los grandes proveedores no tienen región en
-   Argentina; las más cercanas suelen ser San Pablo o Santiago de Chile.
+1. **Una farmacia:** una máquina virtual chica (2 vCPU, 4 GB de RAM) con el mismo kit.
 2. **Varias farmacias:** servicios administrados (por ejemplo Cloud Run + Cloud SQL + Cloud Storage en
-   Google Cloud, o el equivalente en AWS), PostgreSQL, datos separados por farmacia, usuarios
-   individuales y monitoreo. Del orden de US$ 60-150 por mes de base para todas las farmacias.
+   Google Cloud, o el equivalente en AWS), datos separados por farmacia, usuarios individuales y
+   monitoreo. Del orden de US$ 60-150 por mes de base para todas las farmacias.
 
 ## 7. Costo de la lectura
 
@@ -190,17 +192,17 @@ receta leída con IA. Detalle y alternativas (incluido un modelo propio para la 
   que aplicar medidas de seguridad acordes, registrar la base ante la autoridad de control (AAIP) y
   definir quién accede y por cuánto tiempo se guardan. *A validar con asesoría legal antes de pasar a
   producción.*
-- **Datos fuera del país.** La nube (y la API de IA, si se usa a pedido) procesan los datos fuera de
-  Argentina, y la ley pone
-  condiciones a esas transferencias (por ejemplo, cláusulas contractuales). Revisarlo con el asesor
+- **Datos fuera del país.** Con el servidor en la farmacia, los datos no salen del país (salvo que la
+  copia de respaldo externa se guarde afuera). La nube (y la API de IA, si se usa a pedido) procesan los
+  datos fuera de Argentina, y la ley pone condiciones a esas transferencias (por ejemplo, cláusulas contractuales). Revisarlo con el asesor
   legal junto con las condiciones de los proveedores. Según sus condiciones comerciales, Anthropic no
   usa los datos enviados por la API para entrenar modelos; igual hay que revisar los plazos de retención
   y, si hace falta, firmar un acuerdo de procesamiento de datos.
 - **Lo que ya hace el MVP:** acceso con usuario y clave; fotos visibles solo para usuarios autenticados;
-  rechazo de formularios enviados desde otros sitios; credenciales en variables de entorno.
-- **Lo que falta para producción:** HTTPS siempre (ya preparado con Caddy), usuarios individuales con
-  roles y registro de quién hizo qué, doble factor, backups cifrados y una política de retención (por
-  ejemplo, borrar las fotos después de cierto tiempo).
+  rechazo de formularios enviados desde otros sitios; credenciales en variables de entorno. Con el kit de
+  instalación: HTTPS siempre, base sin acceso desde afuera y respaldos cifrados en dos lugares.
+- **Lo que falta para producción:** usuarios individuales con roles y registro de quién hizo qué, doble
+  factor y una política de retención (por ejemplo, borrar las fotos después de cierto tiempo).
 
 ## 9. Medir la precisión antes de confiar
 
@@ -223,7 +225,7 @@ al lado, para confirmar en segundos.
 | Etapa | Duración estimada | Qué incluye | Resultado |
 |---|---|---|---|
 | 0. Relevamiento | 1-2 semanas | [Preguntas](relevamiento.md); recetas de muestra, reportes del sistema y el detalle de débitos de los últimos meses. | Sabemos cómo conectarnos y qué reglas aplicar. |
-| 1. Piloto | 3-4 semanas | Este MVP en la nube para una farmacia: fotos + reporte exportado + conciliación. Formatos y reglas reales. Medición de precisión. | Primeros débitos evitados y números para decidir. |
+| 1. Piloto | 3-4 semanas | Este MVP instalado en la farmacia (o en su nube propia): fotos + reporte exportado + conciliación. Formatos y reglas reales. Medición de precisión. | Primeros débitos evitados y números para decidir. |
 | 2. Automatización | 4-6 semanas | Conector automático (API o robot); base de medicamentos para comparar nombres comerciales con la droga recetada; usuarios individuales; procesamiento en cola. | El backoffice solo saca fotos y revisa excepciones. |
 | 3. Después de la liquidación | 3-4 semanas | Cruzar las liquidaciones y los débitos con lo presentado: qué se debitó, por qué y qué se puede reclamar o refacturar. Tablero de débitos por causa. | Se recupera plata y se ataca la causa de los débitos. |
 | 4. Varias farmacias | A definir | Datos separados por farmacia, alta de clientes, facturación, panel por farmacia. | Producto para ofrecer a otras farmacias. |
@@ -231,7 +233,7 @@ al lado, para confirmar en segundos.
 
 ## 11. Decisiones a tomar
 
-1. **Infraestructura:** ¿vamos con la nube administrada por nosotros? (recomendado)
+1. **Infraestructura:** servidor en la farmacia (recomendado si no quiere compartir sus datos) o nube propia de la farmacia.
 2. **Qué sistema cruzar primero:** colegio, gerenciadora o sistema de gestión de la farmacia (sale del
    relevamiento).
 3. **Quién saca las fotos y cuándo:** en el mostrador al dispensar o en el backoffice al cierre.

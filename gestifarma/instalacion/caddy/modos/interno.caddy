@@ -1,0 +1,3 @@
+# Solo para pruebas: certificado de la autoridad propia de Caddy. Los navegadores muestran una advertencia
+# salvo que se instale su certificado raíz en cada equipo.
+tls internal

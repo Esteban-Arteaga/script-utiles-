@@ -12,7 +12,7 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
-from . import servicios
+from . import servicios, version_instalada
 from .almacenamiento import AlmacenLocal
 from .conciliacion.motor import Resultado
 from .conciliacion.reglas import Reglas
@@ -37,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="gestifarma", description="Conciliación de recetas vs. lo cargado en las obras sociales."
     )
+    parser.add_argument("--version", action="version", version=f"gestifarma {version_instalada()}")
     sub = parser.add_subparsers(dest="comando", required=True)
 
     p = sub.add_parser("servidor", help="levanta la aplicación web")
